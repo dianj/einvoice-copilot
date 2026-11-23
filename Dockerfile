@@ -1,3 +1,12 @@
+# --- Stage 1: the embedding model ---------------------------------------------------------------------------------
+# Downloaded at build time, so the container starts offline. A stage of its own that does not depend on
+# requirements.txt: a dependency change does not download the 240 MB model again, and CI caches this layer.
+FROM python:3.12-slim AS model
+ENV PIP_NO_CACHE_DIR=1
+RUN pip install "fastembed>=0.9.1,<1"
+RUN python -c "from fastembed import TextEmbedding; TextEmbedding('sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2', cache_dir='/models')"
+
+# --- Stage 2: the app ---------------------------------------------------------------------------------------------
 FROM python:3.12-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -8,15 +17,12 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install -r requirements.txt
 
-# The embedding model is downloaded at build time, so the container starts offline. data/ is a volume, so the
-# model lives outside it.
-ENV EMBED_CACHE_DIR=/app/models
-RUN python -c "from fastembed import TextEmbedding; TextEmbedding('sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2', cache_dir='/app/models')"
-
-# Run as an unprivileged user; data/ is the only writable place.
+# Run as an unprivileged user; data/ is the only writable place. data/ is a volume, so the model lives outside it.
 RUN useradd --create-home --uid 1000 app
+ENV EMBED_CACHE_DIR=/app/models
+COPY --from=model --chown=app:app /models /app/models
 COPY --chown=app:app . .
-RUN mkdir -p /app/data && chown -R app:app /app/data /app/models
+RUN mkdir -p /app/data && chown app:app /app/data
 USER app
 
 EXPOSE 8000

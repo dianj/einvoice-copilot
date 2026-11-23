@@ -45,12 +45,22 @@ jobs:
 
   docker:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # A cold build downloads the 240 MB embedding model from Hugging Face, which is slow from CI (~13 min);
+    # later builds take that layer from the GitHub Actions cache.
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
 
+      - uses: docker/setup-buildx-action@v4
+
       - name: Build the image
-        run: docker build -t einvoice-copilot .
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          load: true
+          tags: einvoice-copilot
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
       - name: Start it and check /api/health
         run: |
