@@ -27,6 +27,8 @@ _DATA = tempfile.mkdtemp(prefix="einvoice-tests-")
 os.environ["CHROMA_PATH"] = os.path.join(_DATA, "chroma")
 os.environ["CHECKPOINT_DB"] = os.path.join(_DATA, "checkpoints.sqlite")
 os.environ["ATTACHMENTS_DIR"] = os.path.join(_DATA, "attachments")
+os.environ["APP_DB"] = os.path.join(_DATA, "app.sqlite")           # FakeServiceNow tickets
+os.environ["SN_BACKEND"] = "fake"
 
 
 @pytest.fixture(scope="session")

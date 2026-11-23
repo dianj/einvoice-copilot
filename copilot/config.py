@@ -27,6 +27,14 @@ CHECKPOINT_DB = Path(os.environ.get("CHECKPOINT_DB", BASE_DIR / "data" / "checkp
 ATTACHMENTS_DIR = Path(os.environ.get("ATTACHMENTS_DIR", BASE_DIR / "data" / "attachments"))
 HISTORY_TURNS = int(os.environ.get("HISTORY_TURNS", "6"))  # earlier messages the router sees
 
+# --- Tickets: approved requirement drafts become ServiceNow records ---
+SN_BACKEND = os.environ.get("SN_BACKEND", "fake")            # fake (SQLite in APP_DB) | rest (ServiceNow Table API)
+SN_INSTANCE_URL = os.environ.get("SN_INSTANCE_URL", "")      # https://<instance>.service-now.com
+SN_USER = os.environ.get("SN_USER", "")
+SN_PASSWORD = os.environ.get("SN_PASSWORD", "")
+SN_TABLE = os.environ.get("SN_TABLE", "u_localization_requirement")
+SN_TIMEOUT_SECONDS = float(os.environ.get("SN_TIMEOUT_SECONDS", "15"))
+
 # --- Corpus ---
 # 1 = also load corpus/test-only (a poisoned document for injection evals). Never in the demo.
 CORPUS_INCLUDE_TEST = os.environ.get("CORPUS_INCLUDE_TEST", "0") == "1"
