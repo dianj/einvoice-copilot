@@ -1,0 +1,2 @@
+# Generated samples are compared byte for byte with a fresh run: never convert their line endings.
+samples/invoices/** -text
