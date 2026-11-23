@@ -25,6 +25,27 @@ os.environ["CORPUS_INCLUDE_TEST"] = "0"
 os.environ["EMBEDDER"] = "fake"                  # no model download in tests; the benchmark measures the real one
 _DATA = tempfile.mkdtemp(prefix="einvoice-tests-")
 os.environ["CHROMA_PATH"] = os.path.join(_DATA, "chroma")
+os.environ["CHECKPOINT_DB"] = os.path.join(_DATA, "checkpoints.sqlite")
+os.environ["ATTACHMENTS_DIR"] = os.path.join(_DATA, "attachments")
+
+
+@pytest.fixture(scope="session")
+def _fake_lm_server():
+    from fake_lmstudio import FakeLMStudio
+
+    fake = FakeLMStudio().start()
+    yield fake
+    fake.stop()
+
+
+@pytest.fixture
+def fake_lm(_fake_lm_server, monkeypatch):
+    """The scripted model, empty at the start of each test; the app talks to it instead of LM Studio."""
+    from copilot import config
+
+    _fake_lm_server.reset()
+    monkeypatch.setattr(config, "LLM_BASE_URL", _fake_lm_server.base_url)
+    yield _fake_lm_server
 
 
 @pytest.fixture(scope="session")

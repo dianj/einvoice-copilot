@@ -23,6 +23,9 @@ HYBRID_SEARCH = os.environ.get("HYBRID_SEARCH", "1") == "1"  # vector + BM25 (se
 
 # --- Storage ---
 APP_DB = Path(os.environ.get("APP_DB", BASE_DIR / "data" / "app.sqlite"))
+CHECKPOINT_DB = Path(os.environ.get("CHECKPOINT_DB", BASE_DIR / "data" / "checkpoints.sqlite"))  # LangGraph threads
+ATTACHMENTS_DIR = Path(os.environ.get("ATTACHMENTS_DIR", BASE_DIR / "data" / "attachments"))
+HISTORY_TURNS = int(os.environ.get("HISTORY_TURNS", "6"))  # earlier messages the router sees
 
 # --- Corpus ---
 # 1 = also load corpus/test-only (a poisoned document for injection evals). Never in the demo.

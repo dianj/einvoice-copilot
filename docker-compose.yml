@@ -10,6 +10,11 @@ services:
       - path: .env
         required: false
     volumes:
-      - ./data:/app/data
+      # A named volume, not ./data: SQLite (LangGraph checkpoints) and Chroma need a Linux file system, and a local
+      # uvicorn using ./data at the same time would share its database files with the container.
+      - app-data:/app/data
     extra_hosts:
       - "host.docker.internal:host-gateway"
+
+volumes:
+  app-data:
