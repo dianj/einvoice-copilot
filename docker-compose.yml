@@ -1,0 +1,15 @@
+services:
+  app:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      # LM Studio runs on the host machine, not in the container.
+      LLM_BASE_URL: ${LLM_BASE_URL:-http://host.docker.internal:1235/v1}
+    env_file:
+      - path: .env
+        required: false
+    volumes:
+      - ./data:/app/data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"

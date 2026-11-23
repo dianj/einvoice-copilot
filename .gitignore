@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+
+# Generated data (vector index, checkpoints, app database)
+data/
+*.sqlite
+*.db
+
+# Local notes, secrets and tooling
+HANDOFF.md
+.env
+.vscode/
+.idea/
+.claude/
+*.log
+test-results/
+.coverage
+coverage.xml
+
+# Eval run details (summaries in evals/results/*.md are committed)
+evals/results/*.json
