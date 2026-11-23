@@ -12,8 +12,9 @@ requirement tickets after human approval.
 > **Work in progress.** Done: the fictional world (15 regulation documents and the key facts they must agree on), a
 > deterministic **rule engine with 30 rules** and **45 sample invoices**, **date-aware hybrid retrieval** measured on
 > 75 questions, and a **LangGraph assistant** that answers with checked citations, explains the engine's findings and
-> compares countries. Next: requirement drafts and ServiceNow tickets behind a human-approval interrupt (E4), then
-> real-model evals and observability (E5).
+> compares countries, and **requirement drafts that become ServiceNow tickets only after a person approves them**
+> (a LangGraph interrupt). Next: a run against a ServiceNow developer instance, then real-model evals and
+> observability (E5).
 
 ## Design principles
 
@@ -68,9 +69,13 @@ rule both fails in one sample and passes in another, and that the committed file
 
 ```
 START → route ─┬─► clarify / out_of_scope → END
-               └─► extract_date ─┬─► question: retrieve (one search per date) → answer_grounded → END
-                                 ├─► validate: validate_invoice → retrieve_rule_docs → explain_findings → END
-                                 └─► compare:  compare_countries (one model call per country) → END
+               ├─► extract_date ─┬─► question: retrieve (one search per date) → answer_grounded → END
+               │                 ├─► validate: validate_invoice → retrieve_rule_docs → explain_findings → END
+               │                 ├─► compare:  compare_countries (one model call per country) → END
+               │                 └─► draft_requirement: retrieve → draft_requirement → END
+               └─► create_ticket: approval (interrupt: a person approves, edits or rejects)
+                                    ├─ approved → create_ticket (ServiceNow) → END
+                                    └─ rejected → END
 ```
 
 The model only ever fills a JSON schema (`response_format: json_schema`); code decides what is true:
@@ -91,6 +96,17 @@ The model only ever fills a JSON schema (`response_format: json_schema`); code d
 - **compare_countries**: for each country, the three best passages per aspect (model, scope, tax ID, mandatory
   content, corrections, archiving, currency, timing), one model call per column; a cell without a valid citation
   becomes "Not specified in the documents."
+- **draft_requirement**: title, user story, acceptance criteria, rule ids and document references for one change.
+  Code checks the draft before it is shown: references must be retrieved passages, rule ids must belong to the
+  country, and the effective date must appear in a cited passage (otherwise the approval card warns). The priority
+  is computed from that date, not chosen by the model.
+- **approval → create_ticket**: "create the ticket" (typed, or the Create ticket button, which skips the model)
+  pauses the graph with LangGraph's `interrupt()`. Only `POST /api/threads/{id}/approval` with the open interrupt's
+  id resumes it; the decision is checked again in the node (only title, story, criteria, priority and date are
+  editable: rule ids and references are evidence). Anything but a well-formed approval is a rejection; a new
+  message while the card is open ends the wait without a ticket; `create_ticket` checks that the approval is for
+  exactly the current draft. The ticket's idempotency key (thread + draft hash) makes a second request return the
+  existing ticket.
 
 `POST /api/chat` streams the run as server-sent events (each node's start and duration, the sources, findings or
 table, then the answer); the browser reads them with `fetch` because the request is a POST. Threads are kept by
@@ -102,7 +118,21 @@ With the real model (Gemma 4 26B in LM Studio), checked by hand on the demo ques
 gets exactly the engine's two findings explained with fixes; Kestria vs Orlavia gives 13 of 16 cells cited.
 Two things the first live runs found, both fixed and re-checked: the conflict was never mentioned (0/3 → 3/3 after
 making the instruction concrete), and a Bulgarian question about Kestria was refused as out of scope (now a code
-rule). Real-model evals with numbers come in E5.
+rule). Requirement drafts, checked by hand on five requests (Orlavia's 4-hour deadline, Valdoria's B2B clearance,
+Kestria's reduced rate and KSK VAT total, a Bulgarian request about the Orlavian QR code): every draft cited the right
+amendment or specification and linked the matching rule (OL-05, VD-06, KS-05, KS-03/04, OL-02/03); the dates were
+in the passages; the two requests without a date were flagged on the card; "Yes, please create the ticket" was
+routed to the approval every time. Real-model evals with numbers come in E5.
+
+![Approval: a requirement drafted by the model, checked by code, waiting for a person before any ticket exists](docs/screenshots/04-approval.png)
+
+### Tickets (ServiceNow)
+
+Tickets go through one interface with two implementations: a local fake on SQLite (the default; numbers
+`LOCREQ0001001…`) and the ServiceNow **Table API** (`SN_BACKEND=rest`, Basic auth for an integration user, one retry
+on 429/5xx/connection errors, the idempotency key looked up before insert, caller text never placed in an encoded
+query). One contract test suite runs against the fake, against the REST adapter with a fake Table API, and, with
+`SN_LIVE_TESTS=1`, against a real instance ([setup](docs/SERVICENOW_SETUP.md)). The Tickets tab lists them.
 
 ![Compare: Kestria vs Orlavia, every cell cited or "not specified"](docs/screenshots/03-compare.png)
 
@@ -149,7 +179,7 @@ uvicorn server:app --port 8000          # or: docker compose up
 
 Open `http://localhost:8000`. The Assistant and Compare tabs need an OpenAI-compatible model server (developed with
 LM Studio and Gemma 4 26B; see [.env.example](.env.example)); the Validate tab works without one. API: `/api/chat`,
-`/api/attachments`, `/api/threads/{id}`, `/api/health`, `/api/corpus`,
+`/api/attachments`, `/api/threads/{id}`, `/api/threads/{id}/approval`, `/api/tickets`, `/api/health`, `/api/corpus`,
 `/api/rules?country=KS&transaction_type=B2G&as_of=2026-03-05`, `/api/samples`, and
 
 ```bash
@@ -164,7 +194,7 @@ that do not match the request's schema), and a hashing embedder stands in for th
 ```bash
 pip install -r requirements-dev.txt
 python -m playwright install chromium
-python -m pytest --cov=copilot --cov=server        # 289 tests, 99 % coverage, incl. Playwright
+python -m pytest --cov=copilot --cov=server        # 329 tests, 99 % coverage, incl. Playwright
 ```
 
 ## License

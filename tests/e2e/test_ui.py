@@ -116,6 +116,15 @@ def test_compare_tab_renders_a_cited_table(page, app_url, fake_lm):
     expect(page.locator("#compare-summary")).to_contain_text("2 of 16 cells")
     assert "Compare Kestria and Orlavia on 2026-05-15" in fake_lm.calls("route")[0]["messages"][1]["content"]
 
+    # a cited cell offers a requirement draft: it opens the assistant with the cell as the request
+    fake_lm.script("route", route("draft_requirement", [], []))
+    fake_lm.script("requirement_draft", draft_with_html)
+    table.locator("tbody tr").first.locator(".draft-cell").last.click()
+    expect(page.locator("#view-assistant")).to_be_visible()
+    expect(page.locator(".msg.user").last).to_have_text(
+        "Draft a requirement for Orlavia: E-invoicing model (Per the law.) as of 2026-05-15")
+    expect(page.get_by_test_id("draft")).to_contain_text("OL-05")   # code found Orlavia in the request
+
 
 def test_tabs_follow_the_address_hash(page, app_url):
     page.goto(app_url)
@@ -126,3 +135,58 @@ def test_tabs_follow_the_address_hash(page, app_url):
     page.click("nav >> text=Validate")
     expect(page.locator("#view-validate")).to_be_visible()
     assert page.url.endswith("#validate")
+
+
+def draft_with_html(payload):
+    from fake_lmstudio import enum_of
+
+    refs = enum_of(payload, "doc_refs")
+    return {"title": "Orlavia 4-hour deadline <img src=x onerror=alert(1)>", "country": "OL",
+            "effective_date": "2026-04-01", "user_story": "As a localization analyst, I want the 4-hour deadline.",
+            "acceptance_criteria": ["Invoices issued from 1 April 2026 are reported within 4 hours."],
+            "rule_ids": ["OL-05"], "doc_refs": [next((r for r in refs if r.startswith("OL-AM-12")), refs[0])]}
+
+
+def test_draft_approve_with_an_edit_and_see_the_ticket(page, app_url, fake_lm):
+    import re
+
+    fake_lm.script("route", route("draft_requirement", ["OL"], ["1 April 2026"]))
+    fake_lm.script("requirement_draft", draft_with_html)
+    page.goto(app_url)
+    page.fill("#message", "Draft a requirement for the Orlavia reporting deadline from 1 April 2026")
+    page.click("#send")
+    draft = page.get_by_test_id("draft")
+    expect(draft).to_contain_text("OL-05")
+    expect(page.locator(".msg.assistant").last).to_contain_text("<img src=x onerror=alert(1)>")  # text, not HTML
+    assert page.locator(".msg img").count() == 0
+
+    page.get_by_test_id("create-ticket").click()       # the button: no route call needed
+    card = page.get_by_test_id("approval")
+    expect(card).to_be_visible()
+    expect(page.locator(".msg.assistant").last).to_contain_text("No ticket is created without your approval")
+    page.fill("#ap-title", "Orlavia: report invoices to ORTS within 4 hours")
+    page.select_option("#ap-priority", "medium")
+    page.click("#approve")
+    number = page.get_by_test_id("ticket-number")
+    expect(number).to_have_text(re.compile(r"^LOCREQ\d{7}$"))
+    ticket = number.inner_text()
+
+    page.click("nav >> text=Tickets")
+    row = page.locator("#tickets-table tr", has_text=ticket)
+    expect(row).to_contain_text("Orlavia: report invoices to ORTS within 4 hours")
+    expect(row).to_contain_text("medium")
+    row.click()
+    expect(page.locator("#ticket-detail")).to_contain_text("reported within 4 hours")
+    expect(page.locator("#tickets-backend")).to_have_text("local fake ServiceNow (SQLite)")
+
+
+def test_reject_creates_no_ticket(page, app_url, fake_lm):
+    fake_lm.script("route", route("draft_requirement", ["OL"], ["1 April 2026"]))
+    fake_lm.script("requirement_draft", draft_with_html)
+    page.goto(app_url)
+    page.fill("#message", "Draft a requirement for the Orlavia reporting deadline")
+    page.click("#send")
+    page.get_by_test_id("create-ticket").click()
+    page.click("#reject")
+    expect(page.locator(".msg.assistant").last).to_contain_text("Not created")
+    assert page.get_by_test_id("ticket-number").count() == 0

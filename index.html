@@ -80,6 +80,20 @@
     table.compare td { min-width: 200px; }
     table.compare td.na { color: var(--muted); }
     .single { padding: 20px 24px; display: flex; flex-direction: column; gap: 16px; }
+    .card { border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; margin-top: 10px; background: var(--panel-2); display: flex; flex-direction: column; gap: 8px; }
+    .card h3 { margin: 0; font-size: 14px; }
+    .card.approval { border-color: var(--warn); }
+    .card.approval label { color: var(--muted); }
+    .card input[type=text], .card textarea { background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 7px 8px; font: inherit; width: 100%; }
+    .card textarea { resize: vertical; min-height: 60px; }
+    .card .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+    .card .warn { color: var(--warn); font-size: 13px; margin: 0; padding-left: 18px; }
+    .card.done { border-color: var(--ok); }
+    .ticket-no { font-family: ui-monospace, Consolas, monospace; color: var(--ok); font-weight: 600; }
+    .draft-cell { margin-left: 6px; font-size: 12px; padding: 2px 8px; }
+    #tickets-table tr.pick { cursor: pointer; }
+    #tickets-table tr.pick:hover td { background: var(--panel-2); }
+    .tickets { display: grid; grid-template-columns: 1fr minmax(280px, 420px); gap: 20px; align-items: start; }
     @media (max-width: 760px) { .app, .chat { grid-template-columns: 1fr; } aside { border-right: 0; border-bottom: 1px solid var(--line); } }
 </style>
 </head>
@@ -93,6 +107,7 @@
         <button role="tab" aria-selected="true" type="button" data-view="assistant">Assistant</button>
         <button role="tab" aria-selected="false" type="button" data-view="validate">Validate</button>
         <button role="tab" aria-selected="false" type="button" data-view="compare">Compare</button>
+        <button role="tab" aria-selected="false" type="button" data-view="tickets">Tickets</button>
     </nav>
 </header>
 
@@ -143,6 +158,18 @@
     </form>
     <div id="compare-result"><p class="empty">Pick two or three countries and a date. Every cell cites the passage it
         comes from, or says it is not specified in the documents.</p></div>
+</div>
+
+<div class="single view" id="view-tickets" hidden>
+    <div class="row compare-form">
+        <h2 style="margin:0">Tickets from approved drafts</h2>
+        <button class="secondary" id="tickets-refresh" type="button">Refresh</button>
+        <span class="sub" id="tickets-backend"></span>
+    </div>
+    <div class="tickets">
+        <div id="tickets-list"><p class="empty">Loading…</p></div>
+        <div id="ticket-detail"><p class="empty">Click a ticket to see it.</p></div>
+    </div>
 </div>
 
 <div class="app view" id="view-validate" hidden>
@@ -309,18 +336,23 @@ function showView(name) {
     for (const view of document.querySelectorAll(".view")) view.hidden = view.id !== `view-${name}`;
 }
 for (const tab of document.querySelectorAll("nav [role=tab]")) {
-    tab.addEventListener("click", () => { showView(tab.dataset.view); history.replaceState(null, "", `#${tab.dataset.view}`); });
+    tab.addEventListener("click", () => {
+        showView(tab.dataset.view);
+        history.replaceState(null, "", `#${tab.dataset.view}`);
+        if (tab.dataset.view === "tickets") loadTickets();
+    });
 }
 function viewFromHash() {
     const name = location.hash.slice(1);
-    showView(["validate", "compare"].includes(name) ? name : "assistant");
+    showView(["validate", "compare", "tickets"].includes(name) ? name : "assistant");
+    if (name === "tickets") loadTickets();
 }
 window.addEventListener("hashchange", viewFromHash);
 viewFromHash();
 
 // --- streaming chat (POST + server-sent events, read with fetch: EventSource is GET-only) ----------------------
-async function streamChat(body, onEvent) {
-    const response = await fetch("/api/chat", {
+async function streamChat(body, onEvent, url = "/api/chat") {
+    const response = await fetch(url, {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
     });
     if (!response.ok) {
@@ -349,6 +381,7 @@ const NODE_LABELS = {
     route: "understanding", extract_date: "dates", retrieve: "searching documents", answer_grounded: "answering",
     validate_invoice: "rule engine", retrieve_rule_docs: "rule documents", explain_findings: "explaining",
     compare_countries: "comparing", clarify: "clarifying", out_of_scope: "scope",
+    draft_requirement: "drafting", approval: "waiting for approval", create_ticket: "creating ticket",
 };
 
 function progressLine(target, event) {
@@ -357,7 +390,9 @@ function progressLine(target, event) {
         target.append(el("span", { class: "step", "data-node": event.node }, `${label} … `));
     } else if (event.event === "node_finished") {
         const step = [...target.querySelectorAll(".step")].reverse().find((s) => s.dataset.node === event.node);
-        if (step) {
+        if (step && event.status === "waiting") {
+            step.textContent = `${label} · `;
+        } else if (step) {
             step.textContent = `${label} ${event.ms} ms · `;
             step.classList.add("done");
         }
@@ -410,8 +445,16 @@ function compareTable(comparison) {
             el("th", {}, aspect.label),
             ...comparison.countries.map((c) => {
                 const cell = comparison.cells[aspect.id][c];
-                return cell.citation ? el("td", {}, el("div", {}, cell.text), chip(cell.citation))
-                                     : el("td", { class: "na" }, cell.text);
+                if (!cell.citation) return el("td", { class: "na" }, cell.text);
+                const draft = el("button", { class: "secondary draft-cell", type: "button",
+                                             title: "Draft a requirement from this cell" }, "Draft requirement");
+                draft.addEventListener("click", () => {
+                    newThread();
+                    showView("assistant");
+                    history.replaceState(null, "", "#assistant");
+                    send(`Draft a requirement for ${COUNTRY_NAMES[c]}: ${aspect.label} (${cell.text}) as of ${comparison.as_of}`);
+                });
+                return el("td", {}, el("div", {}, cell.text), chip(cell.citation), draft);
             })))));
 }
 
@@ -440,26 +483,101 @@ function renderFinal(event, extra) {
     if (event.notes?.length) node.append(el("ul", { class: "notes" }, ...event.notes.map((n) => el("li", {}, n))));
 }
 
-async function send(message) {
-    addMessage("user", message);
+
+// --- requirement drafts, approval, tickets ---------------------------------------------------------------------
+const PRIORITIES = ["high", "medium", "low"];
+
+function draftCard(draft) {
+    const button = el("button", { class: "primary", type: "button", "data-testid": "create-ticket" }, "Create ticket");
+    button.addEventListener("click", () => {
+        button.disabled = true;
+        send("Create a ServiceNow ticket for this draft.", { action: "create_ticket" });
+    });
+    return el("div", { class: "card", "data-testid": "draft" },
+        el("div", { class: "row" }, el("span", { class: "badge" }, `${COUNTRY_NAMES[draft.country]} · ${draft.effective_date ?? "no date"} · ${draft.priority}`),
+            ...draft.rule_ids.map((id) => el("span", { class: "badge mono" }, id))),
+        draft.warnings.length ? el("ul", { class: "warn" }, ...draft.warnings.map((w) => el("li", {}, w))) : "",
+        el("div", { class: "row" }, button));
+}
+
+function approvalCard(event) {
+    const d = event.draft;
+    const title = el("input", { type: "text", id: "ap-title", maxlength: "160" });
+    title.value = d.title;
+    const story = el("textarea", { id: "ap-story", maxlength: "4000" });
+    story.value = d.user_story;
+    const criteria = el("textarea", { id: "ap-criteria", rows: String(Math.max(3, d.acceptance_criteria.length + 1)) });
+    criteria.value = d.acceptance_criteria.join("\n");
+    const priority = el("select", { id: "ap-priority" }, ...PRIORITIES.map((p) => el("option", { value: p }, p)));
+    priority.value = d.priority;
+    const day = el("input", { type: "date", id: "ap-date" });
+    day.value = d.effective_date ?? "";
+    const approve = el("button", { class: "primary", type: "button", id: "approve" }, "Approve and create ticket");
+    const reject = el("button", { class: "secondary", type: "button", id: "reject" }, "Reject");
+    const card = el("div", { class: "card approval", "data-testid": "approval" },
+        el("h3", {}, "Approval needed: nothing is created until you approve"),
+        el("label", {}, "Title", title), el("label", {}, "User story", story),
+        el("label", {}, "Acceptance criteria (one per line)", criteria),
+        el("div", { class: "row" }, el("label", {}, "Priority", priority), el("label", {}, "Effective date", day)),
+        el("div", { class: "row" }, el("span", { class: "sub" }, "Evidence (not editable):"),
+            ...d.rule_ids.map((id) => el("span", { class: "badge mono" }, id)), ...d.doc_refs.map(chip)),
+        d.warnings.length ? el("ul", { class: "warn" }, ...d.warnings.map((w) => el("li", {}, w))) : "",
+        el("div", { class: "row" }, approve, reject));
+    const decide = (approved) => {
+        approve.disabled = reject.disabled = true;
+        const edits = {};
+        if (approved) {
+            const lines = criteria.value.split("\n").map((l) => l.trim()).filter(Boolean);
+            const changed = { title: title.value.trim(), user_story: story.value.trim(), acceptance_criteria: lines,
+                              priority: priority.value, effective_date: day.value || null };
+            for (const [key, value] of Object.entries(changed)) {
+                if (JSON.stringify(value) !== JSON.stringify(d[key] ?? null)) edits[key] = value;
+            }
+            if (edits.effective_date === null) delete edits.effective_date;
+        }
+        card.classList.add("done");
+        runStream(`/api/threads/${encodeURIComponent(threadId)}/approval`,
+                  { interrupt_id: event.interrupt_id, approved, edits });
+    };
+    approve.addEventListener("click", () => decide(true));
+    reject.addEventListener("click", () => decide(false));
+    return card;
+}
+
+function ticketCard(ticket) {
+    const number = el("span", { class: "ticket-no", "data-testid": "ticket-number" }, ticket.number);
+    const parts = [el("span", {}, ticket.created ? "Ticket created: " : "Existing ticket: "), number];
+    if (ticket.url) parts.push(el("a", { href: ticket.url, target: "_blank", rel: "noopener" }, " open in ServiceNow"));
+    return el("div", { class: "card done" }, el("div", { class: "row" }, ...parts));
+}
+
+async function runStream(url, body) {
     const progress = $("progress");
     progress.replaceChildren();
     $("send").disabled = true;
     const extra = [];
     try {
-        await streamChat({ message, thread_id: threadId, attachment_id: attachmentId }, (event) => {
+        await streamChat(body, (event) => {
             if (event.event === "thread") threadId = event.thread_id;
             else if (event.event === "node_started" || event.event === "node_finished") progressLine(progress, event);
             else if (event.event === "findings") extra.push(findingsTable(event.report));
             else if (event.event === "table") extra.push(compareTable(event.comparison));
+            else if (event.event === "draft") extra.push(draftCard(event.draft));
+            else if (event.event === "approval") extra.push(approvalCard(event));
+            else if (event.event === "ticket") extra.push(ticketCard(event.ticket));
             else if (event.event === "error") addMessage("assistant error", event.message);
             else if (event.event === "final") renderFinal(event, extra);
-        });
+        }, url);
     } catch (error) {
         addMessage("assistant error", `Request failed: ${error.message}`);
     } finally {
         $("send").disabled = false;
     }
+}
+
+async function send(message, options = {}) {
+    addMessage("user", message);
+    await runStream("/api/chat", { message, thread_id: threadId, attachment_id: attachmentId, ...options });
 }
 
 $("ask").addEventListener("submit", (event) => {
@@ -498,11 +616,12 @@ $("chat-file").addEventListener("change", async (event) => {
     $("chat-sample").value = "";
     await attach(await file.arrayBuffer(), file.name);
 });
-$("new-thread").addEventListener("click", () => {
+function newThread() {
     threadId = null;
     $("log").replaceChildren();
     $("progress").replaceChildren();
-});
+}
+$("new-thread").addEventListener("click", newThread);
 
 const EXAMPLES = [
     "Is a small Valdorian company obliged to use VCP on 30 June 2026? And on 1 July?",
@@ -545,7 +664,46 @@ $("compare-form").addEventListener("submit", async (event) => {
         $("compare").disabled = false;
     }
 });
-fetch("/api/health").then((r) => r.json()).then((h) => { $("compare-date").value = h.today; });
+fetch("/api/health").then((r) => r.json()).then((h) => {
+    $("compare-date").value = h.today;
+    $("tickets-backend").textContent = h.tickets.backend === "rest" ? "ServiceNow instance" : "local fake ServiceNow (SQLite)";
+});
+
+// --- tickets tab -------------------------------------------------------------------------------------------------
+async function loadTickets() {
+    const list = $("tickets-list");
+    const response = await fetch("/api/tickets");
+    const data = await response.json();
+    if (!response.ok) { list.replaceChildren(el("p", { class: "error-box" }, data.detail)); return; }
+    if (!data.length) {
+        list.replaceChildren(el("p", { class: "empty" }, "No tickets yet. Draft a requirement in the Assistant and approve it."));
+        return;
+    }
+    list.replaceChildren(el("table", { id: "tickets-table" },
+        el("thead", {}, el("tr", {}, ...["Number", "Title", "Country", "Effective", "Priority", "Created"].map((h) => el("th", {}, h)))),
+        el("tbody", {}, ...data.map((t) => {
+            const row = el("tr", { class: "pick" }, el("td", { class: "mono" }, t.number), el("td", {}, t.title),
+                el("td", {}, COUNTRY_NAMES[t.country] ?? t.country), el("td", {}, t.effective_date ?? "—"),
+                el("td", {}, t.priority), el("td", { class: "sub" }, t.created_at));
+            row.addEventListener("click", () => showTicket(t.number));
+            return row;
+        }))));
+}
+
+async function showTicket(number) {
+    const box = $("ticket-detail");
+    const response = await fetch(`/api/tickets/${encodeURIComponent(number)}`);
+    const t = await response.json();
+    if (!response.ok) { box.replaceChildren(el("p", { class: "error-box" }, t.detail)); return; }
+    box.replaceChildren(el("div", { class: "card" },
+        el("h3", {}, `${t.number}: ${t.title}`),
+        el("div", { class: "sub" }, `${COUNTRY_NAMES[t.country] ?? t.country} · effective ${t.effective_date ?? "—"} · priority ${t.priority}`),
+        el("div", {}, t.user_story),
+        el("ul", {}, ...t.acceptance_criteria.map((c) => el("li", {}, c))),
+        el("div", { class: "row" }, ...t.rule_ids.map((id) => el("span", { class: "badge mono" }, id)), ...t.doc_refs.map(chip)),
+        t.url ? el("a", { href: t.url, target: "_blank", rel: "noopener" }, "Open in ServiceNow") : ""));
+}
+$("tickets-refresh").addEventListener("click", loadTickets);
 
 loadSamples();
 </script>
