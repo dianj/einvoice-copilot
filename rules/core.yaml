@@ -1,0 +1,144 @@
+# Core Invoice Model (CIM) v1.0 rules: shared by all countries (COM-02). Country rule sets add their own rules and
+# may extend the code lists below, never remove from them.
+country: CORE
+code_lists:
+  invoice_type: ["380", "381"]
+  # A subset of ISO 4217 plus the Kestrian krona (KSK), which is fictional.
+  currency: [EUR, USD, GBP, CHF, SEK, NOK, DKK, PLN, CZK, HUF, RON, JPY, KSK]
+
+rules:
+  - id: CORE-01
+    title: Invoice number is present
+    severity: error
+    applies_to: [B2B, B2G, B2C]
+    effective_from: 2024-01-01
+    check: "xpath:normalize-space(/*/cbc:ID) != ''"
+    location: /*/cbc:ID
+    message: The invoice has no invoice number.
+    fix_hint: Set cbc:ID to the invoice number from your numbering series.
+    doc_ref: [COM-02 §4]
+
+  - id: CORE-02
+    title: Issue date is present and a valid date
+    severity: error
+    applies_to: [B2B, B2G, B2C]
+    effective_from: 2024-01-01
+    check: python:valid_issue_date
+    location: /*/cbc:IssueDate
+    message: "The issue date '{value}' is missing or not a date in the form YYYY-MM-DD."
+    fix_hint: Write the issue date as YYYY-MM-DD, for example 2026-03-05.
+    doc_ref: [COM-02 §4]
+
+  - id: CORE-03
+    title: Invoice type code is in the code list
+    severity: error
+    applies_to: [B2B, B2G, B2C]
+    effective_from: 2024-01-01
+    check: python:type_code_in_list
+    location: /*/cbc:InvoiceTypeCode
+    message: "Invoice type code '{value}' is not allowed here."
+    fix_hint: Use 380 for an invoice or 381 for a credit note (Orlavia also allows 389 for self-billing).
+    doc_ref: [COM-02 §3]
+
+  - id: CORE-04
+    title: Document currency code is in the code list
+    severity: error
+    applies_to: [B2B, B2G, B2C]
+    effective_from: 2024-01-01
+    check: python:currency_in_list
+    location: /*/cbc:DocumentCurrencyCode
+    message: "Currency code '{value}' is not in the CIM currency list."
+    fix_hint: Use a three-letter code from the CIM currency list, for example EUR or KSK.
+    doc_ref: [COM-02 §3]
+
+  - id: CORE-05
+    title: Seller and buyer names are present
+    severity: error
+    applies_to: [B2B, B2G, B2C]
+    effective_from: 2024-01-01
+    check: >-
+      xpath:normalize-space(/*/cac:AccountingSupplierParty/cac:Party/cac:PartyLegalEntity/cbc:RegistrationName) != ''
+      and normalize-space(/*/cac:AccountingCustomerParty/cac:Party/cac:PartyLegalEntity/cbc:RegistrationName) != ''
+    location: /*/cac:AccountingSupplierParty/cac:Party/cac:PartyLegalEntity/cbc:RegistrationName
+    message: The seller's or the buyer's legal name is missing.
+    fix_hint: Fill cbc:RegistrationName in cac:PartyLegalEntity for both parties.
+    doc_ref: [COM-02 §4]
+
+  - id: CORE-06
+    title: Seller tax ID is present
+    severity: error
+    applies_to: [B2B, B2G, B2C]
+    effective_from: 2024-01-01
+    check: "xpath:normalize-space(/*/cac:AccountingSupplierParty/cac:Party/cac:PartyTaxScheme/cbc:CompanyID) != ''"
+    location: /*/cac:AccountingSupplierParty/cac:Party/cac:PartyTaxScheme/cbc:CompanyID
+    message: The seller's tax ID is missing.
+    fix_hint: Add the seller's VAT registration number in cac:PartyTaxScheme/cbc:CompanyID.
+    doc_ref: [COM-02 §4]
+
+  - id: CORE-07
+    title: The invoice has at least one line
+    severity: error
+    applies_to: [B2B, B2G, B2C]
+    effective_from: 2024-01-01
+    check: "xpath:count(/*/cac:InvoiceLine) >= 1"
+    location: /*/cac:InvoiceLine
+    message: The invoice has no invoice lines.
+    fix_hint: Add at least one cac:InvoiceLine with quantity, price and net amount.
+    doc_ref: [COM-02 §4]
+
+  - id: CORE-08
+    title: Line net amount equals quantity times price
+    severity: error
+    applies_to: [B2B, B2G, B2C]
+    effective_from: 2024-01-01
+    check: python:line_net_amounts
+    location: /*/cac:InvoiceLine/cbc:LineExtensionAmount
+    message: "Line {value}: the net amount does not equal quantity x price (tolerance 0.01)."
+    fix_hint: Recalculate cbc:LineExtensionAmount as cbc:InvoicedQuantity x cac:Price/cbc:PriceAmount, rounded to 2 decimals.
+    doc_ref: [COM-02 §5]
+
+  - id: CORE-09
+    title: Sum of line net amounts equals the total without VAT
+    severity: error
+    applies_to: [B2B, B2G, B2C]
+    effective_from: 2024-01-01
+    check: python:sum_of_lines
+    location: /*/cac:LegalMonetaryTotal/cbc:LineExtensionAmount
+    message: "The sum of the line net amounts does not equal the document total {value} (tolerance 0.01)."
+    fix_hint: Set cac:LegalMonetaryTotal/cbc:LineExtensionAmount to the sum of all line net amounts.
+    doc_ref: [COM-02 §5]
+
+  - id: CORE-10
+    title: VAT breakdown is consistent
+    severity: error
+    applies_to: [B2B, B2G, B2C]
+    effective_from: 2024-01-01
+    check: python:vat_breakdown
+    location: /*/cac:TaxTotal
+    message: "VAT breakdown error: {value}."
+    fix_hint: For each VAT rate, tax amount = taxable amount x rate; the VAT total is the sum of the subtotals.
+    doc_ref: [COM-02 §5]
+
+  - id: CORE-11
+    title: Amount due equals the total with VAT minus prepaid amounts
+    severity: error
+    applies_to: [B2B, B2G, B2C]
+    effective_from: 2024-01-01
+    check: python:payable_amount
+    location: /*/cac:LegalMonetaryTotal/cbc:PayableAmount
+    message: "The amount due {value} does not equal the total with VAT minus prepaid amounts (tolerance 0.01)."
+    fix_hint: Set cbc:PayableAmount = cbc:TaxInclusiveAmount - cbc:PrepaidAmount (+ cbc:PayableRoundingAmount).
+    doc_ref: [COM-02 §5]
+
+  - id: CORE-12
+    title: A credit note references the original invoice
+    severity: error
+    applies_to: [B2B, B2G, B2C]
+    effective_from: 2024-01-01
+    check: >-
+      xpath:not(/*/cbc:InvoiceTypeCode = '381')
+      or count(/*/cac:BillingReference/cac:InvoiceDocumentReference/cbc:ID) > 0
+    location: /*/cac:BillingReference/cac:InvoiceDocumentReference/cbc:ID
+    message: The credit note does not reference the invoice it corrects.
+    fix_hint: Add cac:BillingReference/cac:InvoiceDocumentReference/cbc:ID with the original invoice number.
+    doc_ref: [COM-02 §6]

@@ -1,0 +1,75 @@
+# Kestria (post-audit, KesNet four-corner network). Rules from the KesNet invoice profile v3 (KS-TS-01) and the
+# VAT code list in force (KS-CL-00 / KS-CL-01). KS-07 and KS-08 are planned.
+country: KS
+code_lists: {}
+
+rules:
+  - id: KS-01
+    title: Seller tax ID is a Kestrian tax ID
+    severity: error
+    applies_to: [B2B, B2G]
+    effective_from: 2024-09-01
+    check: python:ks_seller_tax_id
+    location: /*/cac:AccountingSupplierParty/cac:Party/cac:PartyTaxScheme/cbc:CompanyID
+    message: "Seller tax ID '{value}' is not a Kestrian tax ID (KS + eight digits)."
+    fix_hint: Use the seller's Kestrian tax ID, for example KS12345678.
+    doc_ref: [KS-TS-01 §3]
+
+  - id: KS-02
+    title: Seller and buyer have KesNet endpoint IDs
+    severity: error
+    applies_to: [B2B, B2G]
+    effective_from: 2024-09-01
+    check: >-
+      xpath:count(/*/cac:AccountingSupplierParty/cac:Party/cbc:EndpointID[@schemeID = 'KESNET']) = 1
+      and count(/*/cac:AccountingCustomerParty/cac:Party/cbc:EndpointID[@schemeID = 'KESNET']) = 1
+    location: /*/cac:AccountingSupplierParty/cac:Party/cbc:EndpointID
+    message: The seller or the buyer has no KesNet endpoint ID.
+    fix_hint: Add cbc:EndpointID with schemeID "KESNET" for both parties, as registered with their access points.
+    doc_ref: [KS-TS-01 §2]
+
+  - id: KS-03
+    title: A foreign-currency invoice states KSK as tax currency
+    severity: error
+    applies_to: [B2B, B2G]
+    effective_from: 2024-09-01
+    check: "xpath:/*/cbc:DocumentCurrencyCode = 'KSK' or /*/cbc:TaxCurrencyCode = 'KSK'"
+    location: /*/cbc:TaxCurrencyCode
+    message: The invoice is not in KSK but does not state KSK as the tax currency.
+    fix_hint: Add cbc:TaxCurrencyCode with the value KSK.
+    doc_ref: [KS-TS-01 §4]
+
+  - id: KS-04
+    title: A foreign-currency invoice states the VAT total in KSK
+    severity: error
+    applies_to: [B2B, B2G]
+    effective_from: 2024-09-01
+    check: >-
+      xpath:/*/cbc:DocumentCurrencyCode = 'KSK'
+      or count(/*/cac:TaxTotal/cbc:TaxAmount[@currencyID = 'KSK']) = 1
+    location: /*/cac:TaxTotal/cbc:TaxAmount
+    message: The invoice is not in KSK but has no second VAT total in KSK.
+    fix_hint: Add a second cac:TaxTotal with only cbc:TaxAmount in KSK, converted at the official rate.
+    doc_ref: [KS-TS-01 §4]
+
+  - id: KS-05
+    title: VAT rates are valid for the tax point date
+    severity: error
+    applies_to: [B2B, B2G]
+    effective_from: 2024-09-01
+    check: python:ks_vat_rates
+    location: /*/cac:TaxTotal/cac:TaxSubtotal/cac:TaxCategory/cbc:Percent
+    message: "{value}"
+    fix_hint: Use the rate of the VAT code list in force on the tax point date (cbc:TaxPointDate, else the issue date).
+    doc_ref: [KS-CL-01 §2, KS-TS-01 §5]
+
+  - id: KS-06
+    title: A public-sector invoice has a buyer reference
+    severity: error
+    applies_to: [B2G]
+    effective_from: 2024-09-01
+    check: "xpath:normalize-space(/*/cbc:BuyerReference) != ''"
+    location: /*/cbc:BuyerReference
+    message: The invoice to a public-sector buyer has no buyer reference.
+    fix_hint: Add cbc:BuyerReference with the order or commitment number given by the public buyer.
+    doc_ref: [KS-TS-01 §6]

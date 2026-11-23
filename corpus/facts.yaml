@@ -1,0 +1,98 @@
+# Key facts of the fictional world: the single source of truth for the corpus, the rules and the evals.
+# Every fact names the document that states it and a regular expression that must match that document's text
+# (checked by tests/test_corpus.py), so the documents cannot drift from these values.
+
+VD.b2g_from:
+  value: 2025-01-01
+  doc: VD-LAW-01
+  pattern: 'business-to-government.{0,80}1 January 2025'
+VD.b2b_large_from:
+  value: 2026-01-01
+  doc: VD-LAW-01
+  pattern: 'large taxpayers.{0,120}1 January 2026'
+VD.large_taxpayer_turnover_eur:
+  value: 10000000
+  doc: VD-LAW-01
+  pattern: 'turnover.{0,60}EUR 10 million'
+VD.b2b_all_from:
+  value: 2026-07-01
+  doc: VD-AM-03
+  pattern: '1 July 2026'
+VD.b2b_all_from_original:
+  value: 2027-01-01
+  doc: VD-LAW-01
+  pattern: 'all other.{0,120}1 January 2027'
+VD.b2b_all_from_outdated_faq:
+  value: 2027-01-01
+  doc: VD-FAQ-01
+  pattern: '1 January 2027'
+VD.resubmit_working_days:
+  value: 5
+  doc: VD-LAW-01
+  pattern: 'within five working days'
+VD.clearance_id_format:
+  value: VCP-YYYY-NNNNNNNN
+  doc: VD-TS-02
+  pattern: 'VCP-YYYY-NNNNNNNN'
+VD.tax_id_format:
+  value: VD + 9 digits, mod-11 check digit
+  doc: VD-TS-02
+  pattern: 'VD.{0,20}nine digits'
+VD.clearance_id_on_invoice_from:
+  value: 2026-01-01
+  doc: VD-TS-02
+  pattern: 'VD-09.{0,200}1 January 2026'
+
+KS.mandatory_from:
+  value: 2024-09-01
+  doc: KS-LAW-01
+  pattern: '1 September 2024'
+KS.archive_years:
+  value: 10
+  doc: KS-LAW-01
+  pattern: 'ten years'
+KS.tax_id_format:
+  value: KS + 8 digits, no check digit
+  doc: KS-TS-01
+  pattern: 'KS.{0,20}eight digits'
+KS.vat_standard_percent:
+  value: 25
+  doc: KS-CL-01
+  pattern: 'Standard rate.{0,40}25 %'
+KS.vat_reduced_percent_until_2026_02_28:
+  value: 12
+  doc: KS-CL-01
+  pattern: '12 %.{0,80}28 February 2026'
+KS.vat_reduced_percent_from_2026_03_01:
+  value: 10
+  doc: KS-CL-01
+  pattern: '10 %.{0,80}1 March 2026'
+KS.vat_reduced_percent_2025:
+  value: 12
+  doc: KS-CL-00
+  pattern: 'Reduced rate.{0,40}12 %'
+
+OL.reporting_from:
+  value: 2025-01-01
+  doc: OL-LAW-01
+  pattern: '1 January 2025'
+OL.reporting_hours_until_2026_03_31:
+  value: 24
+  doc: OL-LAW-01
+  pattern: 'within 24 hours'
+OL.reporting_hours_from_2026_04_01:
+  value: 4
+  doc: OL-AM-12
+  pattern: '1 April 2026.{0,80}within 4 hours'
+OL.applies_to_b2c:
+  value: true
+  doc: OL-LAW-01
+  pattern: 'business-to-consumer'
+OL.tax_id_format:
+  value: OL + 10 digits
+  doc: OL-TS-01
+  pattern: 'OL.{0,20}ten digits'
+OL.self_billing_type_code:
+  value: 389
+  doc: OL-TS-01
+  pattern: '389'

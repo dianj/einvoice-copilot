@@ -1,0 +1,63 @@
+# Orlavia (real-time reporting, ORTS). Rules from the ORTS reporting specification v2 (OL-TS-01).
+# OL-06 to OL-08 are planned.
+country: OL
+code_lists:
+  invoice_type: ["389"]   # self-billing, allowed only with a self-billing agreement (OL-04)
+
+rules:
+  - id: OL-01
+    title: Seller tax ID is an Orlavian tax ID
+    severity: error
+    applies_to: [B2B, B2G, B2C]
+    effective_from: 2025-01-01
+    check: python:ol_seller_tax_id
+    location: /*/cac:AccountingSupplierParty/cac:Party/cac:PartyTaxScheme/cbc:CompanyID
+    message: "Seller tax ID '{value}' is not an Orlavian tax ID (OL + ten digits)."
+    fix_hint: Use the seller's Orlavian tax ID, for example OL1234567890.
+    doc_ref: [OL-TS-01 §2]
+
+  - id: OL-02
+    title: The invoice carries an ORTS QR payload
+    severity: error
+    applies_to: [B2B, B2G, B2C]
+    effective_from: 2025-01-01
+    check: "xpath:count(/*/cac:AdditionalDocumentReference/cbc:ID[@schemeID = 'ORTS-QR']) = 1"
+    location: /*/cac:AdditionalDocumentReference/cbc:ID
+    message: The invoice has no ORTS QR payload.
+    fix_hint: Add cac:AdditionalDocumentReference/cbc:ID with schemeID "ORTS-QR" and the payload defined in OL-TS-01 §4.
+    doc_ref: [OL-TS-01 §4]
+
+  - id: OL-03
+    title: The QR hash matches the invoice data
+    severity: error
+    applies_to: [B2B, B2G, B2C]
+    effective_from: 2025-01-01
+    check: python:ol_qr_hash
+    location: /*/cac:AdditionalDocumentReference/cbc:ID
+    message: "The QR payload does not match the invoice: {value}."
+    fix_hint: Rebuild the payload and its hash from the final invoice data, as in OL-TS-01 §4.
+    doc_ref: [OL-TS-01 §4]
+
+  - id: OL-04
+    title: A self-billed invoice references the self-billing agreement
+    severity: error
+    applies_to: [B2B, B2G]
+    effective_from: 2025-01-01
+    check: >-
+      xpath:not(/*/cbc:InvoiceTypeCode = '389')
+      or count(/*/cac:ContractDocumentReference[cbc:DocumentTypeCode = 'SBA']/cbc:ID) > 0
+    location: /*/cac:ContractDocumentReference
+    message: The self-billed invoice (type 389) does not reference a self-billing agreement.
+    fix_hint: Add cac:ContractDocumentReference with cbc:DocumentTypeCode "SBA" and the agreement number in cbc:ID.
+    doc_ref: [OL-TS-01 §5]
+
+  - id: OL-05
+    title: The issue time is present
+    severity: error
+    applies_to: [B2B, B2G, B2C]
+    effective_from: 2025-01-01
+    check: "xpath:normalize-space(/*/cbc:IssueTime) != ''"
+    location: /*/cbc:IssueTime
+    message: The invoice has no issue time, so the ORTS reporting deadline cannot be checked.
+    fix_hint: Add cbc:IssueTime (hh:mm:ss, Orlavian local time).
+    doc_ref: [OL-TS-01 §3]

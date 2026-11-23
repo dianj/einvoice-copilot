@@ -1,0 +1,89 @@
+# Valdoria (clearance model, VCP). Rules from the VCP technical specification v2.1 (VD-TS-02).
+# VD-07, VD-08 and VD-10 are planned; the numbering follows the specification.
+country: VD
+code_lists: {}
+
+rules:
+  - id: VD-01
+    title: Seller tax ID is a valid Valdorian tax ID
+    severity: error
+    applies_to: [B2B, B2G]
+    effective_from: 2025-01-01
+    check: python:vd_seller_tax_id
+    location: /*/cac:AccountingSupplierParty/cac:Party/cac:PartyTaxScheme/cbc:CompanyID
+    message: "Seller tax ID '{value}' is not a valid Valdorian tax ID (VD + nine digits, mod-11 check digit)."
+    fix_hint: Use the tax ID registered with the Valdorian Revenue Office; the check digit is computed as in VD-TS-02 §4.
+    doc_ref: [VD-TS-02 §4]
+
+  - id: VD-02
+    title: Buyer tax ID is a valid Valdorian tax ID (B2B)
+    severity: error
+    applies_to: [B2B]
+    effective_from: 2025-01-01
+    check: python:vd_buyer_tax_id
+    location: /*/cac:AccountingCustomerParty/cac:Party/cac:PartyTaxScheme/cbc:CompanyID
+    message: "Buyer tax ID '{value}' is missing or not a valid Valdorian tax ID."
+    fix_hint: Add the buyer's Valdorian tax ID (VD + nine digits) in the buyer's cac:PartyTaxScheme/cbc:CompanyID.
+    doc_ref: [VD-TS-02 §4]
+
+  - id: VD-03
+    title: Invoice number follows the series format
+    severity: error
+    applies_to: [B2B, B2G]
+    effective_from: 2025-01-01
+    check: python:vd_invoice_number_format
+    location: /*/cbc:ID
+    message: "Invoice number '{value}' does not follow SERIES-YYYY-NNNNNN with the year of the issue date."
+    fix_hint: "Use a series prefix of 2-4 capital letters, the issue year and a 6-digit sequence, e.g. INV-2026-000123."
+    doc_ref: [VD-TS-02 §3]
+
+  - id: VD-04
+    title: Zero-rated VAT lines state an exemption reason
+    severity: error
+    applies_to: [B2B, B2G]
+    effective_from: 2025-01-01
+    check: >-
+      xpath:count(/*/cac:TaxTotal/cac:TaxSubtotal/cac:TaxCategory[cbc:Percent = 0
+      and normalize-space(cbc:TaxExemptionReason) = '']) = 0
+    location: /*/cac:TaxTotal/cac:TaxSubtotal/cac:TaxCategory/cbc:TaxExemptionReason
+    message: A VAT subtotal at 0 % has no exemption reason.
+    fix_hint: Add cbc:TaxExemptionReason to every 0 % tax category, citing the legal basis of the exemption.
+    doc_ref: [VD-TS-02 §5]
+
+  - id: VD-05
+    title: A cleared credit note references the original Clearance ID
+    severity: error
+    applies_to: [B2B, B2G]
+    stages: [cleared]
+    effective_from: 2026-01-01
+    check: >-
+      xpath:not(/*/cbc:InvoiceTypeCode = '381')
+      or count(/*/cac:BillingReference/cac:AdditionalDocumentReference/cbc:ID[@schemeID = 'VCP']) > 0
+    location: /*/cac:BillingReference/cac:AdditionalDocumentReference/cbc:ID
+    message: The credit note does not reference the Clearance ID of the invoice it corrects.
+    fix_hint: Add cac:BillingReference/cac:AdditionalDocumentReference/cbc:ID with schemeID "VCP" and the original Clearance ID.
+    doc_ref: [VD-TS-02 §7]
+
+  - id: VD-06
+    title: B2B clearance scope can be determined (large taxpayers only until 30 June 2026)
+    severity: warning
+    applies_to: [B2B]
+    effective_from: 2026-01-01
+    effective_to: 2026-06-30
+    check: python:vd_b2b_scope_known
+    location: /*/cac:AccountingSupplierParty
+    message: "From 1 January to 30 June 2026 only large taxpayers must clear B2B invoices; the taxpayer size is unknown."
+    fix_hint: Set taxpayer_size to 'large' (turnover above EUR 10 million) or 'other' to know whether VCP clearance is mandatory.
+    doc_ref: [VD-TS-02 §8]
+
+  - id: VD-09
+    title: A cleared invoice carries a well-formed Clearance ID
+    severity: error
+    applies_to: [B2B, B2G]
+    stages: [cleared]
+    effective_from: 2026-01-01
+    check: python:vd_clearance_id
+    location: /*/cac:AdditionalDocumentReference/cbc:ID
+    message: "The cleared invoice has no valid Clearance ID (found '{value}'; expected VCP-YYYY-NNNNNNNN)."
+    fix_hint: Copy the Clearance ID returned by VCP into cac:AdditionalDocumentReference/cbc:ID with schemeID "VCP".
+    doc_ref: [VD-TS-02 §6]
