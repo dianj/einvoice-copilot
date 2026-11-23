@@ -387,8 +387,8 @@ def write_all(seed: int, out_dir: Path = OUT_DIR) -> list[Sample]:
         (target / f"{sample.name}.xml").write_bytes(render(sample))
         expected = {"description": sample.description, "params": sample.params,
                     "expected_rule_ids": sorted(sample.expected)}
-        (target / f"{sample.name}.expected.json").write_text(json.dumps(expected, indent=2) + "\n",
-                                                             encoding="utf-8")
+        # Bytes, not text: Path.write_text would write CRLF on Windows and differ from the committed files.
+        (target / f"{sample.name}.expected.json").write_bytes((json.dumps(expected, indent=2) + "\n").encode())
     return generated
 
 
