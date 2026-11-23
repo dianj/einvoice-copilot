@@ -1,0 +1,96 @@
+# Retrieval benchmark: labelled questions with the date they are asked for and the documents that answer them.
+# A question is a hit@k when any expected document is among the top k passages. `answerable: false` questions are
+# about things the corpus does not cover; they calibrate the abstention threshold.
+# Kinds: fact, rule (rule ids and codes as exact tokens), version (the answer depends on which document version is in
+# force on as_of), obligation (an obligation date announced by a document), compare, bg (asked in Bulgarian), none.
+default_as_of: 2026-05-15
+
+questions:
+  # --- Valdoria -------------------------------------------------------------------------------------------------
+  - {id: vd-01, kind: fact, question: "From when must business-to-government invoices be cleared in Valdoria?", expected: [VD-LAW-01]}
+  - {id: vd-02, kind: obligation, as_of: 2026-06-30, question: "Is a small Valdorian company obliged to clear its B2B invoices through VCP on 30 June 2026?", expected: [VD-AM-03, VD-LAW-01]}
+  - {id: vd-03, kind: obligation, as_of: 2026-07-01, question: "From which date must all VAT-registered taxpayers in Valdoria clear business-to-business invoices?", expected: [VD-AM-03]}
+  - {id: vd-04, kind: fact, question: "Who counts as a large taxpayer in Valdoria?", expected: [VD-LAW-01]}
+  - {id: vd-05, kind: fact, question: "How long does a supplier have to resubmit an invoice rejected by VCP?", expected: [VD-LAW-01, VD-FAQ-01]}
+  - {id: vd-06, kind: fact, question: "How is the check digit of a Valdorian tax ID calculated?", expected: [VD-TS-02]}
+  - {id: vd-07, kind: version, as_of: 2025-03-01, question: "How is the check digit of a Valdorian tax ID calculated?", expected: [VD-TS-01]}
+  - {id: vd-08, kind: fact, question: "What format does a VCP Clearance ID have?", expected: [VD-TS-02]}
+  - {id: vd-09, kind: version, as_of: 2025-06-01, question: "Must the Clearance ID be stated on the invoice sent to the buyer?", expected: [VD-TS-01]}
+  - {id: vd-10, kind: version, as_of: 2026-02-01, question: "Must the Clearance ID be stated on the invoice sent to the buyer?", expected: [VD-TS-02]}
+  - {id: vd-11, kind: rule, question: "What does rule VD-09 require?", expected: [VD-TS-02]}
+  - {id: vd-12, kind: fact, question: "How does a credit note correct a cleared invoice in Valdoria?", expected: [VD-TS-02, VD-LAW-01]}
+  - {id: vd-13, kind: fact, question: "What is the required invoice number format for Valdorian invoices?", expected: [VD-TS-02]}
+  - {id: vd-14, kind: fact, question: "Do Valdorian invoices to consumers need clearance?", expected: [VD-LAW-01, VD-FAQ-01]}
+  - {id: vd-15, kind: rule, question: "Which rule requires an exemption reason for a 0 % VAT breakdown in Valdoria?", expected: [VD-TS-02]}
+  - {id: vd-16, kind: rule, question: "What does VD-06 check during the transition period?", expected: [VD-TS-02]}
+  - {id: vd-17, kind: fact, question: "What is the difference between a pre-clearance and a cleared invoice?", expected: [VD-TS-02]}
+  - {id: vd-18, kind: fact, question: "Can a cleared invoice in Valdoria be modified or cancelled?", expected: [VD-LAW-01]}
+  - {id: vd-19, kind: obligation, as_of: 2026-04-01, question: "Can a taxpayer that is not large clear its invoices voluntarily before July 2026?", expected: [VD-AM-03]}
+  - {id: vd-20, kind: rule, question: "Which schemeID marks the Clearance ID in the UBL invoice?", expected: [VD-TS-02]}
+
+  # --- Kestria --------------------------------------------------------------------------------------------------
+  - {id: ks-01, kind: fact, question: "From when are structured electronic invoices mandatory in Kestria?", expected: [KS-LAW-01]}
+  - {id: ks-02, kind: fact, question: "How long must invoices be archived in Kestria?", expected: [KS-LAW-01]}
+  - {id: ks-03, kind: fact, question: "May Kestrian invoices to consumers be issued as PDF?", expected: [KS-LAW-01]}
+  - {id: ks-04, kind: fact, question: "How does the KesNet four-corner network deliver an invoice?", expected: [KS-LAW-01]}
+  - {id: ks-05, kind: version, as_of: 2026-03-05, question: "What is the reduced VAT rate in Kestria?", expected: [KS-CL-01]}
+  - {id: ks-06, kind: version, as_of: 2025-10-01, question: "What is the reduced VAT rate in Kestria?", expected: [KS-CL-00]}
+  - {id: ks-07, kind: obligation, as_of: 2026-03-02, question: "Which rate applies to an invoice issued on 2 March 2026 for a supply made on 27 February 2026?", expected: [KS-CL-01]}
+  - {id: ks-08, kind: fact, question: "What must a Kestrian invoice issued in EUR state about the VAT total?", expected: [KS-TS-01, KS-LAW-01]}
+  - {id: ks-09, kind: rule, question: "What does rule KS-03 require?", expected: [KS-TS-01]}
+  - {id: ks-10, kind: fact, question: "What is the format of a Kestrian tax ID?", expected: [KS-TS-01]}
+  - {id: ks-11, kind: rule, question: "Where is the KESNET endpoint ID stated in the invoice?", expected: [KS-TS-01]}
+  - {id: ks-12, kind: fact, question: "Does a Kestrian invoice to a public-sector body need a buyer reference?", expected: [KS-TS-01, KS-LAW-01]}
+  - {id: ks-13, kind: fact, question: "Does the Kestrian tax authority validate invoices when they are issued?", expected: [KS-LAW-01]}
+  - {id: ks-14, kind: fact, question: "Which exchange rate is used to convert the VAT total into krona?", expected: [KS-LAW-01]}
+  - {id: ks-15, kind: fact, question: "Which date decides the VAT rate of a Kestrian invoice?", expected: [KS-CL-01, KS-TS-01]}
+  - {id: ks-16, kind: rule, question: "What do the VAT category codes S, AA and E mean?", expected: [KS-CL-01, KS-TS-01]}
+  - {id: ks-17, kind: rule, question: "Is TaxCurrencyCode KSK needed when the document currency is KSK?", expected: [KS-TS-01]}
+
+  # --- Orlavia --------------------------------------------------------------------------------------------------
+  - {id: ol-01, kind: obligation, as_of: 2026-03-15, question: "What is the reporting deadline for an Orlavian invoice issued on 15 March 2026?", expected: [OL-AM-12, OL-LAW-01]}
+  - {id: ol-02, kind: obligation, as_of: 2026-04-10, question: "Within how many hours must an Orlavian invoice issued on 10 April 2026 be reported?", expected: [OL-AM-12]}
+  - {id: ol-03, kind: fact, question: "Are invoices to consumers covered by real-time reporting in Orlavia?", expected: [OL-LAW-01]}
+  - {id: ol-04, kind: fact, question: "Which fields does the ORTS QR payload contain?", expected: [OL-TS-01]}
+  - {id: ol-05, kind: fact, question: "How is the hash in the QR payload computed?", expected: [OL-TS-01]}
+  - {id: ol-06, kind: fact, question: "What is required for self-billing in Orlavia?", expected: [OL-TS-01, OL-LAW-01]}
+  - {id: ol-07, kind: rule, question: "Which invoice type code do self-billed invoices use, 389?", expected: [OL-TS-01, COM-02]}
+  - {id: ol-08, kind: fact, question: "What is the format of an Orlavian tax ID?", expected: [OL-TS-01]}
+  - {id: ol-09, kind: fact, question: "How are credit notes reported to ORTS?", expected: [OL-LAW-01]}
+  - {id: ol-10, kind: fact, question: "What happens when an Orlavian invoice states no issue time?", expected: [OL-AM-12, OL-TS-01]}
+  - {id: ol-11, kind: fact, question: "Does ORTS approve invoices before they are issued?", expected: [OL-LAW-01]}
+  - {id: ol-12, kind: rule, question: "What does rule OL-03 check?", expected: [OL-TS-01]}
+  - {id: ol-13, kind: rule, question: "Where is the ORTS-QR payload placed in the UBL invoice?", expected: [OL-TS-01]}
+
+  # --- Common core ----------------------------------------------------------------------------------------------
+  - {id: com-01, kind: fact, question: "What rounding tolerance is allowed in invoice arithmetic?", expected: [COM-02]}
+  - {id: com-02, kind: rule, question: "Which invoice type codes does the Core Invoice Model define, 380 and 381?", expected: [COM-02]}
+  - {id: com-03, kind: fact, question: "Which currency codes may an invoice use?", expected: [COM-02]}
+  - {id: com-04, kind: rule, question: "What does rule CORE-12 require?", expected: [COM-02]}
+  - {id: com-05, kind: fact, question: "Which content is mandatory on every invoice?", expected: [COM-02]}
+  - {id: com-06, kind: fact, question: "May a national specification relax the common core rules?", expected: [COM-02]}
+
+  # --- Comparison -----------------------------------------------------------------------------------------------
+  - {id: cmp-01, kind: compare, question: "Which country uses a clearance model and which a post-audit model?", expected: [COM-03, VD-LAW-01, KS-LAW-01]}
+  - {id: cmp-02, kind: compare, question: "Which platforms or networks do Valdoria, Kestria and Orlavia use?", expected: [COM-03]}
+  - {id: cmp-03, kind: compare, question: "How does real-time reporting differ from clearance?", expected: [OL-LAW-01, COM-03]}
+
+  # --- Asked in Bulgarian (the corpus is English) ---------------------------------------------------------------
+  - {id: bg-01, kind: bg, question: "Колко години трябва да се пазят фактурите в Кестрия?", expected: [KS-LAW-01]}
+  - {id: bg-02, kind: bg, as_of: 2026-04-10, question: "Какъв е срокът за докладване на фактура в Орлавия след 1 април 2026?", expected: [OL-AM-12]}
+  - {id: bg-03, kind: bg, question: "Как се изчислява контролната цифра на валдорийския данъчен номер?", expected: [VD-TS-02]}
+  - {id: bg-04, kind: bg, question: "Трябва ли фактурите към потребители във Валдория да минават през VCP?", expected: [VD-LAW-01, VD-FAQ-01]}
+
+  # --- Not in the documents -------------------------------------------------------------------------------------
+  - {id: none-01, kind: none, answerable: false, question: "What is the standard VAT rate in Germany?"}
+  - {id: none-02, kind: none, answerable: false, question: "How do I register for Peppol in Belgium?"}
+  - {id: none-03, kind: none, answerable: false, question: "What is the corporate income tax rate in Valdoria?"}
+  - {id: none-04, kind: none, answerable: false, question: "How do I configure SAP to send invoices to the Italian SDI?"}
+  - {id: none-05, kind: none, answerable: false, question: "What are the payroll reporting rules for employers in Orlavia?"}
+  - {id: none-06, kind: none, answerable: false, question: "Who won the last football world cup?"}
+  - {id: none-07, kind: none, answerable: false, question: "What is the minimum wage in Kestria?"}
+  - {id: none-08, kind: none, answerable: false, question: "How do I reset my password?"}
+  - {id: none-09, kind: none, answerable: false, question: "Explain transfer pricing documentation requirements."}
+  - {id: none-10, kind: none, answerable: false, question: "What is the deadline for filing annual financial statements in Valdoria?"}
+  - {id: none-11, kind: none, answerable: false, question: "Which customs tariff code applies to imported coffee beans?"}
+  - {id: none-12, kind: none, answerable: false, question: "How does Hungary's online invoice reporting system work?"}

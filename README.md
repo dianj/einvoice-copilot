@@ -60,6 +60,40 @@ They sit on the interesting dates: 28 February vs 1 March 2026 in Kestria, a sup
 it, the Valdorian transition period. Tests check that every sample yields **exactly** its expected findings, that every
 rule both fails in one sample and passes in another, and that the committed files match a fresh run.
 
+## Date-aware retrieval
+
+`copilot/kb/` turns the corpus into ≤ 600-character chunks (one per `##` section, long sections split with overlap),
+embeds them on the CPU with ONNX (`fastembed`, no torch, so the GPU stays free for the chat model) and keeps them in
+Chroma. A search takes the date the question is about:
+
+- **Version filter:** only document versions in force on that date (`valid_from <= as_of <= valid_to`), once in the
+  Chroma query and again in Python on real dates. Obligation dates a document *announces* never filter it out.
+- **Hybrid ranking:** vector search plus BM25, fused with reciprocal rank fusion, because rule ids and codes
+  (`VD-09`, `381`, `KSK`) are exact tokens.
+- **Abstention gate:** below a calibrated similarity the question counts as not answerable.
+
+`evals/retrieval_benchmark.py` measures it on **75 labelled questions** (63 answerable, 12 not; facts, rules,
+versions by date, announced obligations, comparisons, Bulgarian questions), k = 6:
+
+| Embedder | Ranking | hit@1 | hit@3 | MRR | Date-filter violations | Median ms |
+|---|---|---|---|---|---|---|
+| multilingual MiniLM-L12 | vector | 0.873 | 0.984 | 0.927 | 0 | 2.9 |
+| **multilingual MiniLM-L12** | **hybrid (chosen)** | 0.825 | **1.000** | 0.913 | 0 | 3.1 |
+| multilingual mpnet-base | vector | 0.825 | 0.968 | 0.889 | 0 | 9.5 |
+| multilingual mpnet-base | hybrid | 0.857 | 1.000 | 0.923 | 0 | 9.8 |
+
+Hybrid trades a little hit@1 for no misses in the top 3 (the answer step reads the top passages, not only the
+first); mpnet is as good with hybrid ranking but three times slower. **An honest limit:** questions that are on topic
+but not covered (a German VAT rate, payroll in Orlavia) score as high as answerable ones, so a similarity threshold
+alone can only refuse clearly off-topic questions (4 of 12 at the configured 0.40, while keeping all 63 answerable).
+Saying "not in the documents" for the rest is the answer step's job. Full report:
+[evals/results/retrieval.md](evals/results/retrieval.md).
+
+```bash
+python -m copilot.kb.ingest --rebuild             # build the index ahead of time (the app also syncs it at first use)
+python evals/retrieval_benchmark.py               # needs the ONNX models (downloaded once)
+```
+
 ## Quick start
 
 ```bash
