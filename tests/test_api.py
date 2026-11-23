@@ -1,5 +1,4 @@
-"""HTTP API of E1: health, corpus and rule definitions."""
-import asyncio
+"""HTTP API: health, corpus, rule definitions, validation and samples."""
 import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
@@ -32,12 +31,13 @@ class ModelsHandler(BaseHTTPRequestHandler):
         pass
 
 
-def test_a_running_llm_server_is_reported_reachable(monkeypatch):
+def test_a_running_llm_server_is_reported_reachable(monkeypatch, client):
     httpd = HTTPServer(("127.0.0.1", 0), ModelsHandler)
     threading.Thread(target=httpd.serve_forever, daemon=True).start()
     try:
         monkeypatch.setattr(config, "LLM_BASE_URL", f"http://127.0.0.1:{httpd.server_port}/v1")
-        assert asyncio.run(server.llm_reachable()) is True
+        # Through the app, not asyncio.run(): the Playwright tests keep an event loop running in this thread.
+        assert client.get("/api/health").json()["llm"]["reachable"] is True
     finally:
         httpd.shutdown()
 
@@ -59,3 +59,45 @@ def test_rules_for_an_invoice(client):
     orlavia = client.get("/api/rules", params={"country": "OL", "transaction_type": "B2C"}).json()
     assert orlavia["code_lists"]["invoice_type"] == ["380", "381", "389"]
     assert client.get("/api/rules", params={"country": "XX"}).status_code == 422
+
+
+# --- E2: validation and samples ------------------------------------------------------------------------------------
+
+def sample_xml(client, name):
+    response = client.get(f"/api/samples/{name}")
+    assert response.status_code == 200 and response.headers["content-type"].startswith("application/xml")
+    return response.content
+
+
+def test_validate_a_sample_over_http(client):
+    report = client.post("/api/validate", content=sample_xml(client, "ks-demo-old-rate-no-ksk-total")).json()
+    assert report["country"] == "KS" and report["valid"] is False
+    assert [f["rule_id"] for f in report["findings"]] == ["KS-04", "KS-05"]
+    assert report["findings"][1]["doc_ref"] == ["KS-CL-01 §2", "KS-TS-01 §5"]
+
+
+def test_validate_with_parameters(client):
+    data = sample_xml(client, "ks-b2b-valid")
+    report = client.post("/api/validate", params={"transaction_type": "B2G"}, content=data).json()
+    assert [f["rule_id"] for f in report["findings"]] == ["KS-06"]
+    assert client.post("/api/validate", params={"stage": "later"}, content=data).status_code == 422
+
+
+def test_validate_rejects_oversized_bodies_and_reports_bad_xml(client, monkeypatch):
+    monkeypatch.setattr(config, "MAX_UPLOAD_KB", 1)
+    assert client.post("/api/validate", content=b"x" * 2048).status_code == 413
+    report = client.post("/api/validate", content=b"not xml").json()
+    assert [f["rule_id"] for f in report["findings"]] == ["XML-00"]
+
+
+def test_sample_list_and_unknown_samples(client):
+    listed = client.get("/api/samples").json()["samples"]
+    demo = next(s for s in listed if s["name"] == "ks-demo-old-rate-no-ksk-total")
+    assert demo["expected_rule_ids"] == ["KS-04", "KS-05"] and demo["params"] == {}
+    assert client.get("/api/samples/nope").status_code == 404
+    assert client.get("/api/samples/..%2Fgenerator.py").status_code == 404
+
+
+def test_index_page(client):
+    response = client.get("/")
+    assert response.status_code == 200 and "<title>E-Invoice Compliance Copilot</title>" in response.text

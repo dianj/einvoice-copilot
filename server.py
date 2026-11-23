@@ -1,19 +1,25 @@
-"""FastAPI app (async). E1: health, the corpus and the rule definitions. Run with: uvicorn server:app"""
+"""FastAPI app (async): health, corpus, rule definitions, validation and the sample invoices.
+
+Run with: uvicorn server:app
+"""
+import json
 import logging
 from datetime import date
 from typing import Literal
 
 import httpx
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import FileResponse, Response
 
 from copilot import config
 from copilot.corpus.loader import corpus
 from copilot.rules.definitions import rules
+from copilot.rules.engine import Country, Stage, TaxpayerSize, TransactionType, ValidationReport, validate
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 log = logging.getLogger("copilot")
 
-VERSION = "0.1.0"
+VERSION = "0.2.0"
 app = FastAPI(title="E-Invoice Compliance Copilot", version=VERSION)
 
 
@@ -62,3 +68,39 @@ async def list_rules(country: Literal["VD", "KS", "OL"] | None = None,
     return {"rules": [r.model_dump() for r in selected],
             "code_lists": {name: rule_set.code_list(name, country or "CORE")
                            for name in rule_set.sets["CORE"].code_lists}}
+
+
+@app.post("/api/validate", response_model=ValidationReport)
+async def validate_invoice(request: Request, country: Country | None = None,
+                           transaction_type: TransactionType | None = None, stage: Stage = "pre_clearance",
+                           taxpayer_size: TaxpayerSize = "unknown"):
+    """Validate the UBL invoice in the request body (no LLM). Parameters left out are worked out from the invoice."""
+    data = await request.body()
+    if len(data) > config.MAX_UPLOAD_KB * 1024:
+        raise HTTPException(413, f"The invoice is larger than {config.MAX_UPLOAD_KB} KB.")
+    return validate(data, country=country, transaction_type=transaction_type, stage=stage,
+                    taxpayer_size=taxpayer_size)
+
+
+def sample_list() -> dict[str, dict]:
+    found = {}
+    for path in sorted(config.SAMPLES_DIR.glob("*.expected.json")):
+        found[path.name.removesuffix(".expected.json")] = json.loads(path.read_text(encoding="utf-8"))
+    return found
+
+
+@app.get("/api/samples")
+async def list_samples():
+    return {"samples": [{"name": name, **meta} for name, meta in sample_list().items()]}
+
+
+@app.get("/api/samples/{name}")
+async def get_sample(name: str):
+    if name not in sample_list():  # only known names, so no path tricks
+        raise HTTPException(404, f"Unknown sample '{name}'.")
+    return Response((config.SAMPLES_DIR / f"{name}.xml").read_bytes(), media_type="application/xml")
+
+
+@app.get("/", include_in_schema=False)
+async def index():
+    return FileResponse(config.BASE_DIR / "index.html")

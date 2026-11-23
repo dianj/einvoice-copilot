@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>E-Invoice Compliance Copilot</title>
+<style>
+    :root {
+        --bg: #0f1419; --panel: #161d24; --panel-2: #1e2731; --line: #2e3a46;
+        --text: #e9eef3; --muted: #93a1ae; --accent: #3fb6c9; --accent-ink: #062027;
+        --ok: #5fb37a; --warn: #e8b33d; --bad: #e06c5a;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: "Segoe UI", system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+    header { padding: 16px 20px; border-bottom: 1px solid var(--line); display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+    header h1 { font-size: 18px; margin: 0; }
+    header .sub { color: var(--muted); font-size: 12px; }
+    nav { display: flex; gap: 6px; }
+    nav button { background: transparent; color: var(--muted); border: 1px solid transparent; border-radius: 8px; padding: 6px 12px; font: inherit; cursor: pointer; }
+    nav button[aria-selected="true"] { color: var(--text); border-color: var(--line); background: var(--panel-2); }
+    .app { display: grid; grid-template-columns: minmax(280px, 340px) 1fr; min-height: calc(100vh - 66px); }
+    aside { padding: 20px; background: var(--panel); border-right: 1px solid var(--line); display: flex; flex-direction: column; gap: 16px; }
+    aside h2, main h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 0 0 8px; }
+    label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); }
+    select { background: var(--panel-2); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 7px 8px; font: inherit; }
+    .params { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    #drop { border: 1px dashed var(--line); border-radius: 10px; padding: 16px; text-align: center; color: var(--muted); font-size: 13px; cursor: pointer; }
+    #drop.over { border-color: var(--accent); color: var(--text); }
+    #source { font-size: 12px; color: var(--muted); min-height: 1em; overflow-wrap: anywhere; }
+    .primary { background: var(--accent); color: var(--accent-ink); border: 0; border-radius: 10px; padding: 10px 18px; font: inherit; font-weight: 600; cursor: pointer; }
+    .primary:disabled { opacity: .5; cursor: not-allowed; }
+    main { padding: 20px 24px; overflow-x: auto; display: flex; flex-direction: column; gap: 20px; }
+    .empty { color: var(--muted); }
+    .summary { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+    .verdict { font-size: 20px; font-weight: 600; }
+    .verdict.valid { color: var(--ok); }
+    .verdict.invalid { color: var(--bad); }
+    .badge { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 12px; border: 1px solid var(--line); color: var(--muted); }
+    .badge.error { border-color: var(--bad); color: var(--bad); }
+    .badge.warning { border-color: var(--warn); color: var(--warn); }
+    .badge.match { border-color: var(--ok); color: var(--ok); }
+    .notes { margin: 0; padding-left: 18px; color: var(--muted); font-size: 13px; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    td, th { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
+    th { color: var(--muted); font-weight: 500; }
+    .mono { font-family: ui-monospace, Consolas, monospace; font-size: 12px; }
+    td.rule { white-space: nowrap; }
+    td.loc { color: var(--muted); max-width: 260px; word-break: break-all; }
+    .fix { color: var(--muted); margin-top: 4px; }
+    .ref { color: var(--accent); white-space: nowrap; }
+    details summary { cursor: pointer; color: var(--muted); font-size: 13px; }
+    pre { background: #0b1015; border: 1px solid var(--line); border-radius: 8px; padding: 12px; overflow-x: auto; font-size: 12px; max-height: 420px; }
+    .error-box { border: 1px solid var(--bad); border-radius: 8px; padding: 10px 12px; color: var(--bad); }
+    @media (max-width: 760px) { .app { grid-template-columns: 1fr; } aside { border-right: 0; border-bottom: 1px solid var(--line); } }
+</style>
+</head>
+<body>
+<header>
+    <div>
+        <h1>E-Invoice Compliance Copilot</h1>
+        <div class="sub">Fictional countries, real UBL 2.1 · validation by a deterministic rule engine</div>
+    </div>
+    <nav role="tablist"><button role="tab" aria-selected="true" type="button">Validate</button></nav>
+</header>
+<div class="app">
+    <aside>
+        <div>
+            <h2>Invoice</h2>
+            <label>Sample invoice
+                <select id="sample"><option value="">Choose a sample…</option></select>
+            </label>
+        </div>
+        <div id="drop" tabindex="0">…or drop a UBL XML file here (or click to choose one)</div>
+        <input id="file" type="file" accept=".xml,application/xml,text/xml" hidden>
+        <div id="source"></div>
+        <div>
+            <h2>Parameters</h2>
+            <div class="params">
+                <label>Country
+                    <select id="country"><option value="">From seller tax ID</option><option>VD</option><option>KS</option><option>OL</option></select>
+                </label>
+                <label>Transaction
+                    <select id="transaction_type"><option value="">From buyer data</option><option>B2B</option><option>B2G</option><option>B2C</option></select>
+                </label>
+                <label>Stage
+                    <select id="stage"><option value="pre_clearance">Pre-clearance</option><option value="cleared">Cleared</option></select>
+                </label>
+                <label>Taxpayer size
+                    <select id="taxpayer_size"><option value="unknown">Unknown</option><option value="large">Large</option><option value="other">Other</option></select>
+                </label>
+            </div>
+        </div>
+        <button class="primary" id="validate" type="button" disabled>Validate</button>
+    </aside>
+    <main id="result">
+        <p class="empty">Pick a sample or drop an invoice, then press Validate. Every finding comes from a rule in
+            <span class="mono">rules/*.yaml</span> and cites the document section it is based on.</p>
+    </main>
+</div>
+<script>
+const $ = (id) => document.getElementById(id);
+const PARAMS = ["country", "transaction_type", "stage", "taxpayer_size"];
+let xml = null;          // the invoice to validate (text)
+let expected = null;     // expected rule ids when a sample is loaded
+let samples = {};
+
+function el(tag, attrs = {}, ...children) {
+    const node = document.createElement(tag);
+    for (const [key, value] of Object.entries(attrs)) {
+        if (key === "class") node.className = value; else node.setAttribute(key, value);
+    }
+    for (const child of children) node.append(child);   // strings become text nodes: never parsed as HTML
+    return node;
+}
+
+function setInvoice(text, label, expectedIds) {
+    xml = text;
+    expected = expectedIds;
+    $("source").textContent = label;
+    $("validate").disabled = !xml;
+}
+
+async function loadSamples() {
+    const data = await (await fetch("/api/samples")).json();
+    const groups = { valid: el("optgroup", { label: "Valid" }), errors: el("optgroup", { label: "With findings" }) };
+    for (const sample of data.samples) {
+        samples[sample.name] = sample;
+        const group = sample.expected_rule_ids.length ? groups.errors : groups.valid;
+        group.append(el("option", { value: sample.name }, sample.name));
+    }
+    $("sample").append(groups.valid, groups.errors);
+}
+
+$("sample").addEventListener("change", async (event) => {
+    const sample = samples[event.target.value];
+    if (!sample) return setInvoice(null, "", null);
+    const text = await (await fetch(`/api/samples/${encodeURIComponent(sample.name)}`)).text();
+    for (const name of PARAMS) {
+        $(name).value = sample.params[name] ?? $(name).options[0].value;
+    }
+    setInvoice(text, sample.description, sample.expected_rule_ids);
+});
+
+function readFile(file) {
+    if (!file) return;
+    file.text().then((text) => {
+        $("sample").value = "";
+        setInvoice(text, `${file.name} (${Math.ceil(file.size / 1024)} KB)`, null);
+    });
+}
+$("drop").addEventListener("click", () => $("file").click());
+$("drop").addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") $("file").click(); });
+$("file").addEventListener("change", (e) => readFile(e.target.files[0]));
+$("drop").addEventListener("dragover", (e) => { e.preventDefault(); $("drop").classList.add("over"); });
+$("drop").addEventListener("dragleave", () => $("drop").classList.remove("over"));
+$("drop").addEventListener("drop", (e) => {
+    e.preventDefault();
+    $("drop").classList.remove("over");
+    readFile(e.dataTransfer.files[0]);
+});
+
+$("validate").addEventListener("click", async () => {
+    const query = new URLSearchParams();
+    for (const name of PARAMS) if ($(name).value) query.set(name, $(name).value);
+    $("validate").disabled = true;
+    try {
+        const response = await fetch(`/api/validate?${query}`, {
+            method: "POST", headers: { "Content-Type": "application/xml" }, body: xml,
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.detail ?? response.statusText);
+        renderReport(data);
+    } catch (error) {
+        $("result").replaceChildren(el("div", { class: "error-box" }, `Validation failed: ${error.message}`));
+    } finally {
+        $("validate").disabled = !xml;
+    }
+});
+
+function renderReport(report) {
+    const errors = report.findings.filter((f) => f.severity === "error").length;
+    const warnings = report.findings.length - errors;
+    const summary = el("div", { class: "summary" },
+        el("span", { class: `verdict ${report.valid ? "valid" : "invalid"}`, id: "verdict" },
+            report.valid ? "Valid" : "Not valid"),
+        el("span", { class: "badge error" }, `${errors} error${errors === 1 ? "" : "s"}`),
+        el("span", { class: "badge warning" }, `${warnings} warning${warnings === 1 ? "" : "s"}`),
+        el("span", { class: "badge" }, `${report.country ?? "country ?"} · ${report.transaction_type ?? "?"} · ${report.stage}`),
+        el("span", { class: "badge" }, `rules of ${report.rule_date ?? "–"}: ${report.rules_checked.length} checked`),
+        el("span", { class: "badge mono" }, report.rule_set_version));
+    if (expected) {
+        const got = report.findings.map((f) => f.rule_id).sort();
+        const match = JSON.stringify(got) === JSON.stringify(expected);
+        summary.append(el("span", { class: `badge ${match ? "match" : "error"}`, id: "expected" },
+            `${match ? "matches" : "differs from"} the expected: ${expected.join(", ") || "no findings"}`));
+    }
+    const parts = [summary];
+    if (report.notes.length) parts.push(el("ul", { class: "notes" }, ...report.notes.map((n) => el("li", {}, n))));
+
+    if (report.findings.length) {
+        const rows = report.findings.map((f) => el("tr", { class: `finding ${f.severity}` },
+            el("td", { class: "mono rule" }, f.rule_id),
+            el("td", {}, el("span", { class: `badge ${f.severity}` }, f.severity)),
+            el("td", {}, el("div", {}, f.message), el("div", { class: "fix" }, `Fix: ${f.fix_hint}`)),
+            el("td", { class: "mono loc" }, f.location),
+            el("td", { class: "ref" }, f.doc_ref.join(", ") || "–")));
+        parts.push(el("section", {}, el("h2", {}, "Findings"),
+            el("table", { id: "findings" },
+                el("thead", {}, el("tr", {}, ...["Rule", "Severity", "Message and fix", "Location", "Source"].map((h) => el("th", {}, h)))),
+                el("tbody", {}, ...rows))));
+    } else {
+        parts.push(el("p", { class: "empty" }, "No findings: every applicable rule passed."));
+    }
+    parts.push(el("details", {}, el("summary", {}, `Rules checked (${report.rules_checked.length})`),
+        el("p", { class: "mono" }, report.rules_checked.join(" ") || "none")));
+    parts.push(el("details", {}, el("summary", {}, "Invoice XML"), el("pre", { id: "xml" }, xml)));
+    $("result").replaceChildren(...parts);
+}
+
+loadSamples();
+</script>
+</body>
+</html>

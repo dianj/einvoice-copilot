@@ -23,12 +23,25 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt -r requirements-dev.txt
 
+      - name: Install the Playwright browser
+        run: python -m playwright install --with-deps chromium
+
       - name: Lint
         run: ruff check .
 
       # No GPU or LM Studio in CI: everything external has a fake.
       - name: Run tests with coverage
-        run: python -m pytest -v --cov=copilot --cov=server --cov-report=term-missing
+        run: >-
+          python -m pytest -v
+          --cov=copilot --cov=server --cov-report=term-missing
+          --tracing=retain-on-failure --screenshot=only-on-failure --output=test-results
+
+      - name: Upload Playwright traces of failed tests
+        if: failure()
+        uses: actions/upload-artifact@v5
+        with:
+          name: playwright-traces
+          path: test-results/
 
   docker:
     runs-on: ubuntu-latest
