@@ -14,6 +14,13 @@ LLM_MODEL = os.environ.get("LLM_MODEL", "gemma-4-26b-a4b-it")
 LLM_TIMEOUT_SECONDS = float(os.environ.get("LLM_TIMEOUT_SECONDS", "120"))
 LLM_REASONING_EFFORT = os.environ.get("LLM_REASONING_EFFORT", "none")
 
+# --- Knowledge base ---
+EMBEDDER = os.environ.get("EMBEDDER", "onnx")              # onnx | fake
+EMBED_MODEL = os.environ.get("EMBED_MODEL", "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2")
+EMBED_CACHE_DIR = Path(os.environ.get("EMBED_CACHE_DIR", BASE_DIR / "data" / "fastembed"))
+CHROMA_PATH = Path(os.environ.get("CHROMA_PATH", BASE_DIR / "data" / "chroma"))
+HYBRID_SEARCH = os.environ.get("HYBRID_SEARCH", "1") == "1"  # vector + BM25 (see evals/results/retrieval.md)
+
 # --- Storage ---
 APP_DB = Path(os.environ.get("APP_DB", BASE_DIR / "data" / "app.sqlite"))
 

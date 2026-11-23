@@ -2,6 +2,7 @@
 import os
 import socket
 import sys
+import tempfile
 import threading
 import time
 
@@ -21,6 +22,9 @@ def _closed_port() -> int:
 os.environ["LLM_BASE_URL"] = f"http://127.0.0.1:{_closed_port()}/v1"
 os.environ["FROZEN_TODAY"] = "2026-05-15"
 os.environ["CORPUS_INCLUDE_TEST"] = "0"
+os.environ["EMBEDDER"] = "fake"                  # no model download in tests; the benchmark measures the real one
+_DATA = tempfile.mkdtemp(prefix="einvoice-tests-")
+os.environ["CHROMA_PATH"] = os.path.join(_DATA, "chroma")
 
 
 @pytest.fixture(scope="session")
@@ -42,3 +46,9 @@ def app_url():
     yield f"http://127.0.0.1:{port}"
     uv.should_exit = True
     thread.join(timeout=5)
+
+
+def pytest_collection_modifyitems(items):
+    """Browser tests last: Playwright's sync API leaves an event loop running in the main thread, after which
+    asyncio.run() in the async tests would fail."""
+    items.sort(key=lambda item: item.get_closest_marker("e2e") is not None)

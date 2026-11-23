@@ -8,10 +8,15 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install -r requirements.txt
 
+# The embedding model is downloaded at build time, so the container starts offline. data/ is a volume, so the
+# model lives outside it.
+ENV EMBED_CACHE_DIR=/app/models
+RUN python -c "from fastembed import TextEmbedding; TextEmbedding('sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2', cache_dir='/app/models')"
+
 # Run as an unprivileged user; data/ is the only writable place.
 RUN useradd --create-home --uid 1000 app
 COPY --chown=app:app . .
-RUN mkdir -p /app/data && chown app:app /app/data
+RUN mkdir -p /app/data && chown -R app:app /app/data /app/models
 USER app
 
 EXPOSE 8000
