@@ -1,0 +1,7 @@
+{
+  "description": "No invoice number.",
+  "params": {},
+  "expected_rule_ids": [
+    "CORE-01"
+  ]
+}

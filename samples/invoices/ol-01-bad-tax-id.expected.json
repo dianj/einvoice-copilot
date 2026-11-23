@@ -1,0 +1,9 @@
+{
+  "description": "Seller tax ID with a Valdorian prefix but country set to Orlavia.",
+  "params": {
+    "country": "OL"
+  },
+  "expected_rule_ids": [
+    "OL-01"
+  ]
+}

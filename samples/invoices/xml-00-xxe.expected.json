@@ -1,0 +1,7 @@
+{
+  "description": "An external entity that tries to read a local file.",
+  "params": {},
+  "expected_rule_ids": [
+    "XML-00"
+  ]
+}

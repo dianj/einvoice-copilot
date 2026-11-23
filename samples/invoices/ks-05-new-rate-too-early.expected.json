@@ -1,0 +1,7 @@
+{
+  "description": "Rate 10 % used for a supply on 27 February 2026.",
+  "params": {},
+  "expected_rule_ids": [
+    "KS-05"
+  ]
+}

@@ -1,0 +1,7 @@
+{
+  "description": "The buyer has no legal name.",
+  "params": {},
+  "expected_rule_ids": [
+    "CORE-05"
+  ]
+}

@@ -1,0 +1,5 @@
+{
+  "description": "Orlavia B2B invoice with a correct QR payload.",
+  "params": {},
+  "expected_rule_ids": []
+}

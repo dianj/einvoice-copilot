@@ -1,0 +1,7 @@
+{
+  "description": "Issue date written as DD.MM.YYYY.",
+  "params": {},
+  "expected_rule_ids": [
+    "CORE-02"
+  ]
+}

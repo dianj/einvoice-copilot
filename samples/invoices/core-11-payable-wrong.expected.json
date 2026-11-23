@@ -1,0 +1,7 @@
+{
+  "description": "The amount due ignores the prepayment.",
+  "params": {},
+  "expected_rule_ids": [
+    "CORE-11"
+  ]
+}

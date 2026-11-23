@@ -1,0 +1,7 @@
+{
+  "description": "A credit note that does not say which invoice it corrects.",
+  "params": {},
+  "expected_rule_ids": [
+    "CORE-12"
+  ]
+}

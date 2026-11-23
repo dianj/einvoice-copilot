@@ -1,0 +1,7 @@
+{
+  "description": "Type 389 (self-billing) exists only in Orlavia.",
+  "params": {},
+  "expected_rule_ids": [
+    "CORE-03"
+  ]
+}

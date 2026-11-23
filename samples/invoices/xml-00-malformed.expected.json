@@ -1,0 +1,7 @@
+{
+  "description": "Not well-formed XML (cut off).",
+  "params": {},
+  "expected_rule_ids": [
+    "XML-00"
+  ]
+}

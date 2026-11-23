@@ -1,0 +1,7 @@
+{
+  "description": "A VAT subtotal (and the VAT total) are 1.00 too high.",
+  "params": {},
+  "expected_rule_ids": [
+    "CORE-10"
+  ]
+}

@@ -1,0 +1,7 @@
+{
+  "description": "B2B in April 2026 with an unknown taxpayer size: a warning, still valid.",
+  "params": {},
+  "expected_rule_ids": [
+    "VD-06"
+  ]
+}

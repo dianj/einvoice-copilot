@@ -1,0 +1,10 @@
+{
+  "description": "No seller tax ID: the country must be given, and OL-01 fails too.",
+  "params": {
+    "country": "OL"
+  },
+  "expected_rule_ids": [
+    "CORE-06",
+    "OL-01"
+  ]
+}

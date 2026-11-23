@@ -1,0 +1,7 @@
+{
+  "description": "EUR invoice with the KSK VAT total but no TaxCurrencyCode.",
+  "params": {},
+  "expected_rule_ids": [
+    "KS-03"
+  ]
+}

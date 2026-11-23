@@ -1,0 +1,5 @@
+{
+  "description": "Kestria invoice with a prepayment.",
+  "params": {},
+  "expected_rule_ids": []
+}

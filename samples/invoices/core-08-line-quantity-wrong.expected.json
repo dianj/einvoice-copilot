@@ -1,0 +1,7 @@
+{
+  "description": "Line 2: quantity changed after the amount was computed.",
+  "params": {},
+  "expected_rule_ids": [
+    "CORE-08"
+  ]
+}

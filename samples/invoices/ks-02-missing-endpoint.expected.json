@@ -1,0 +1,7 @@
+{
+  "description": "The buyer has no KesNet endpoint.",
+  "params": {},
+  "expected_rule_ids": [
+    "KS-02"
+  ]
+}

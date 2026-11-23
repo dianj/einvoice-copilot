@@ -1,0 +1,8 @@
+{
+  "description": "Valdoria B2G invoice after clearance, with its Clearance ID.",
+  "params": {
+    "transaction_type": "B2G",
+    "stage": "cleared"
+  },
+  "expected_rule_ids": []
+}

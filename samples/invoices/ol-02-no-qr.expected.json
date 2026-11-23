@@ -1,0 +1,7 @@
+{
+  "description": "No QR payload.",
+  "params": {},
+  "expected_rule_ids": [
+    "OL-02"
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "description": "Total changed after the QR payload was printed.",
+  "params": {},
+  "expected_rule_ids": [
+    "CORE-11",
+    "OL-03"
+  ]
+}

@@ -1,0 +1,7 @@
+{
+  "description": "Currency XYZ is not in the CIM list.",
+  "params": {},
+  "expected_rule_ids": [
+    "CORE-04"
+  ]
+}

@@ -1,0 +1,7 @@
+{
+  "description": "Invoice number with last year's year.",
+  "params": {},
+  "expected_rule_ids": [
+    "VD-03"
+  ]
+}

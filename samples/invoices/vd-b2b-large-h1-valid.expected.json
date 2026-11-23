@@ -1,0 +1,7 @@
+{
+  "description": "Valdoria B2B, March 2026, large taxpayer.",
+  "params": {
+    "taxpayer_size": "large"
+  },
+  "expected_rule_ids": []
+}

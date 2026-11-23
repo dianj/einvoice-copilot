@@ -1,0 +1,7 @@
+{
+  "description": "Seller tax ID with seven digits.",
+  "params": {},
+  "expected_rule_ids": [
+    "KS-01"
+  ]
+}

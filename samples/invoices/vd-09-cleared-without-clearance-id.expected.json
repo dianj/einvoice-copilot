@@ -1,0 +1,9 @@
+{
+  "description": "A cleared invoice without its Clearance ID.",
+  "params": {
+    "stage": "cleared"
+  },
+  "expected_rule_ids": [
+    "VD-09"
+  ]
+}

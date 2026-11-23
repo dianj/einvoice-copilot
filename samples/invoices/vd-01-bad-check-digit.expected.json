@@ -1,0 +1,7 @@
+{
+  "description": "Seller tax ID with a wrong check digit.",
+  "params": {},
+  "expected_rule_ids": [
+    "VD-01"
+  ]
+}

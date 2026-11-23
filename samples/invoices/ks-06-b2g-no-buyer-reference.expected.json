@@ -1,0 +1,9 @@
+{
+  "description": "Public-sector invoice without a buyer reference.",
+  "params": {
+    "transaction_type": "B2G"
+  },
+  "expected_rule_ids": [
+    "KS-06"
+  ]
+}

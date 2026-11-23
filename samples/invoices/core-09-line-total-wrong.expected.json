@@ -1,0 +1,7 @@
+{
+  "description": "The document line total is 10.00 too high.",
+  "params": {},
+  "expected_rule_ids": [
+    "CORE-09"
+  ]
+}

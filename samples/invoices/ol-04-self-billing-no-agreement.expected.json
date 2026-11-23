@@ -1,0 +1,7 @@
+{
+  "description": "Self-billed invoice without a self-billing agreement.",
+  "params": {},
+  "expected_rule_ids": [
+    "OL-04"
+  ]
+}

@@ -6,6 +6,7 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent.parent
 CORPUS_DIR = BASE_DIR / "corpus"
 RULES_DIR = BASE_DIR / "rules"
+SAMPLES_DIR = BASE_DIR / "samples" / "invoices"
 
 # --- LLM (any OpenAI-compatible server; developed with LM Studio) ---
 LLM_BASE_URL = os.environ.get("LLM_BASE_URL", "http://localhost:1235/v1")

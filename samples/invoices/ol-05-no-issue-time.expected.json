@@ -1,0 +1,7 @@
+{
+  "description": "No issue time.",
+  "params": {},
+  "expected_rule_ids": [
+    "OL-05"
+  ]
+}

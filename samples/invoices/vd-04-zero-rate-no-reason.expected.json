@@ -1,0 +1,7 @@
+{
+  "description": "A 0 % line without an exemption reason.",
+  "params": {},
+  "expected_rule_ids": [
+    "VD-04"
+  ]
+}

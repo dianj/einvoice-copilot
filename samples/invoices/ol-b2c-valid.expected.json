@@ -1,0 +1,5 @@
+{
+  "description": "Orlavia invoice to a consumer (no buyer tax ID).",
+  "params": {},
+  "expected_rule_ids": []
+}

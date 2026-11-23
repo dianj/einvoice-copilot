@@ -1,0 +1,9 @@
+{
+  "description": "Cleared credit note without the original Clearance ID.",
+  "params": {
+    "stage": "cleared"
+  },
+  "expected_rule_ids": [
+    "VD-05"
+  ]
+}

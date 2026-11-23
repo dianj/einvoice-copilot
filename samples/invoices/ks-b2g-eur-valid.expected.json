@@ -1,0 +1,7 @@
+{
+  "description": "Kestria B2G in EUR: KSK tax currency, VAT total in KSK and a buyer reference.",
+  "params": {
+    "transaction_type": "B2G"
+  },
+  "expected_rule_ids": []
+}

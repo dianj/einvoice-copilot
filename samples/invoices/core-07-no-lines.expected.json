@@ -1,0 +1,7 @@
+{
+  "description": "An invoice without lines.",
+  "params": {},
+  "expected_rule_ids": [
+    "CORE-07"
+  ]
+}

@@ -1,0 +1,7 @@
+{
+  "description": "Valdoria credit note referencing the invoice and its Clearance ID.",
+  "params": {
+    "stage": "cleared"
+  },
+  "expected_rule_ids": []
+}

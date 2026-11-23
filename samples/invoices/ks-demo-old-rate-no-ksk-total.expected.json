@@ -1,0 +1,8 @@
+{
+  "description": "Demo: EUR invoice of 5 March 2026 with the old 12 % rate, no VAT total in KSK, and a Note that claims it is pre-approved.",
+  "params": {},
+  "expected_rule_ids": [
+    "KS-04",
+    "KS-05"
+  ]
+}

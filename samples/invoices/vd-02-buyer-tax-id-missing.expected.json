@@ -1,0 +1,9 @@
+{
+  "description": "B2B invoice without the buyer's tax ID.",
+  "params": {
+    "transaction_type": "B2B"
+  },
+  "expected_rule_ids": [
+    "VD-02"
+  ]
+}
