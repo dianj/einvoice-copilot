@@ -11,7 +11,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 
 def schema_errors(value, schema: dict, path: str = "$") -> list[str]:
-    """Just enough JSON Schema for this project's schemas: type, enum, properties, required, items, maxItems."""
+    """Just enough JSON Schema for this project's schemas: type, enum, properties, required, items, min/maxItems."""
     errors = []
     kind = schema.get("type")
     types = {"object": dict, "array": list, "string": str, "boolean": bool, "integer": int, "number": (int, float)}
@@ -32,6 +32,8 @@ def schema_errors(value, schema: dict, path: str = "$") -> list[str]:
     if kind == "array":
         if "maxItems" in schema and len(value) > schema["maxItems"]:
             errors.append(f"{path}: more than {schema['maxItems']} items")
+        if "minItems" in schema and len(value) < schema["minItems"]:
+            errors.append(f"{path}: fewer than {schema['minItems']} items")
         for i, item in enumerate(value):
             errors += schema_errors(item, schema.get("items", {}), f"{path}[{i}]")
     return errors

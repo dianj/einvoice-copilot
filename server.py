@@ -1,4 +1,5 @@
-"""FastAPI app (async): the assistant (LangGraph, streamed), health, corpus, rules, validation and samples.
+"""FastAPI app (async): the assistant (LangGraph, streamed), ticket approval, tickets, health, corpus, rules,
+validation and samples.
 
 Run with: uvicorn server:app
 """
@@ -11,7 +12,7 @@ from datetime import date
 from typing import Literal
 
 import httpx
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import FileResponse, Response, StreamingResponse
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from pydantic import BaseModel, Field
@@ -19,14 +20,16 @@ from pydantic import BaseModel, Field
 from copilot import attachments, config
 from copilot.corpus.loader import corpus
 from copilot.graph.build import build_graph
-from copilot.graph.run import stream_turn
+from copilot.graph.run import pending_approval, stream_resume, stream_turn
+from copilot.integrations.servicenow import TicketSystemError, ticket_system
+from copilot.integrations.servicenow.models import DraftEdits, TicketDetail, TicketSummary
 from copilot.rules.definitions import rules
 from copilot.rules.engine import Country, Stage, TaxpayerSize, TransactionType, ValidationReport, validate
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 log = logging.getLogger("copilot")
 
-VERSION = "0.3.0"
+VERSION = "0.4.0"
 
 
 @asynccontextmanager
@@ -58,6 +61,7 @@ async def health():
     return {"status": "ok", "version": VERSION, "llm": {"base_url": config.LLM_BASE_URL,
                                                          "reachable": await llm_reachable()},
             "corpus": {"documents": len(docs)}, "rules": {"count": len(rule_set.all)},
+            "tickets": {"backend": config.SN_BACKEND},
             "today": config.today().isoformat()}
 
 
@@ -125,30 +129,33 @@ class ChatRequest(BaseModel):
     thread_id: str | None = Field(None, pattern=r"^[A-Za-z0-9_-]{1,64}$")
     attachment_id: str | None = Field(None, pattern=r"^[0-9a-f]{32}$")
     params: ValidationParams = ValidationParams()
+    action: Literal["create_ticket"] | None = None   # the Create ticket button (code decides, the model is not asked)
+
+
+class ApprovalRequest(BaseModel):
+    interrupt_id: str = Field(min_length=1, max_length=64)
+    approved: bool
+    edits: DraftEdits = DraftEdits()
 
 
 def sse(event: dict) -> str:
     return f"event: {event['event']}\ndata: {json.dumps(event, ensure_ascii=False)}\n\n"
 
 
-@app.post("/api/chat")
-async def chat(body: ChatRequest, request: Request):
-    """Run the graph for one message and stream its progress as server-sent events (read with fetch: POST).
-
-    One run per thread at a time: a second message while the first is running gets 409, because two runs on the
-    same thread would interleave their checkpoints."""
-    graph = request.app.state.graph
-    thread_id = body.thread_id or uuid.uuid4().hex
+async def thread_lock(thread_id: str) -> asyncio.Lock:
+    """One run per thread at a time: two runs on the same thread would interleave their checkpoints."""
     lock = thread_locks.setdefault(thread_id, asyncio.Lock())
     if lock.locked():
         raise HTTPException(409, "This conversation is still answering the previous message.")
     await lock.acquire()
+    return lock
 
+
+def stream_events(thread_id: str, lock: asyncio.Lock, source) -> StreamingResponse:
     async def events():
         try:
             yield sse({"event": "thread", "thread_id": thread_id})
-            async for event in stream_turn(graph, thread_id, body.message, body.attachment_id,
-                                           body.params.model_dump(exclude_none=True)):
+            async for event in source:
                 yield sse(event)
         finally:
             lock.release()
@@ -158,12 +165,65 @@ async def chat(body: ChatRequest, request: Request):
                              headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
 
+@app.post("/api/chat")
+async def chat(body: ChatRequest, request: Request):
+    """Run the graph for one message and stream its progress as server-sent events (read with fetch: POST).
+    A second message while the first is running gets 409. A message while a draft waits for approval ends that
+    wait without a ticket."""
+    graph = request.app.state.graph
+    thread_id = body.thread_id or uuid.uuid4().hex
+    lock = await thread_lock(thread_id)
+    return stream_events(thread_id, lock, stream_turn(graph, thread_id, body.message, body.attachment_id,
+                                                      body.params.model_dump(exclude_none=True), body.action))
+
+
+@app.post("/api/threads/{thread_id}/approval")
+async def answer_approval(thread_id: str, body: ApprovalRequest, request: Request):
+    """Approve (optionally with edits) or reject the requirement draft the thread is waiting on. The only way a
+    ticket gets created. The interrupt id must be the open one: a stale card (the thread moved on) gets 409."""
+    graph = request.app.state.graph
+    lock = await thread_lock(thread_id)
+    try:
+        waiting = pending_approval(await graph.aget_state({"configurable": {"thread_id": thread_id}}))
+        if waiting is None or waiting["interrupt_id"] != body.interrupt_id:
+            raise HTTPException(409, "This draft is no longer waiting for approval. Ask for the ticket again.")
+    except BaseException:
+        lock.release()
+        thread_locks.pop(thread_id, None)
+        raise
+    decision = {"approved": body.approved, "edits": body.edits.model_dump(mode="json", exclude_none=True)}
+    return stream_events(thread_id, lock, stream_resume(graph, thread_id, decision))
+
+
 @app.get("/api/threads/{thread_id}")
 async def get_thread(thread_id: str, request: Request):
     state = await request.app.state.graph.aget_state({"configurable": {"thread_id": thread_id}})
     if not state.values:
         raise HTTPException(404, f"Unknown thread '{thread_id}'.")
-    return {"thread_id": thread_id, "messages": state.values.get("messages", [])}
+    return {"thread_id": thread_id, "messages": state.values.get("messages", []),
+            "requirement_draft": state.values.get("requirement_draft"), "ticket": state.values.get("ticket"),
+            "pending_approval": pending_approval(state)}
+
+
+# --- tickets ----------------------------------------------------------------------------------------------------
+
+@app.get("/api/tickets", response_model=list[TicketSummary])
+async def list_tickets(limit: int = Query(20, ge=1, le=100)):
+    try:
+        return await ticket_system().list_recent(limit)
+    except TicketSystemError as exc:
+        raise HTTPException(503, str(exc)) from None
+
+
+@app.get("/api/tickets/{number}", response_model=TicketDetail)
+async def get_ticket(number: str):
+    try:
+        ticket = await ticket_system().get_ticket(number)
+    except TicketSystemError as exc:
+        raise HTTPException(503, str(exc)) from None
+    if ticket is None:
+        raise HTTPException(404, f"Unknown ticket '{number}'.")
+    return ticket
 
 
 # --- samples ----------------------------------------------------------------------------------------------------

@@ -5,6 +5,7 @@ import re
 import time
 
 from langgraph.config import get_stream_writer
+from langgraph.errors import GraphInterrupt
 
 log = logging.getLogger("copilot.graph")
 CYRILLIC = re.compile(r"[А-Яа-яЁё]")
@@ -25,6 +26,9 @@ def traced(name: str):
                 result = await fn(state)
                 status = "ok"
                 return result
+            except GraphInterrupt:
+                status = "waiting"  # paused for a person (the approval interrupt); resumes in a later request
+                raise
             finally:
                 ms = int((time.perf_counter() - start) * 1000)
                 write({"event": "node_finished", "node": name, "ms": ms, "status": status})
