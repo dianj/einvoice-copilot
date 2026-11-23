@@ -10,8 +10,10 @@ requirement tickets after human approval.
 > real: OASIS UBL 2.1.
 
 > **Work in progress.** Done: the fictional world (15 regulation documents and the key facts they must agree on), a
-> deterministic **rule engine with 30 rules** and **45 generated sample invoices**, the Validate tab, CI and a Docker
-> image. Next: date-aware retrieval and the LangGraph agent that explains findings and answers questions (E3).
+> deterministic **rule engine with 30 rules** and **45 sample invoices**, **date-aware hybrid retrieval** measured on
+> 75 questions, and a **LangGraph assistant** that answers with checked citations, explains the engine's findings and
+> compares countries. Next: requirement drafts and ServiceNow tickets behind a human-approval interrupt (E4), then
+> real-model evals and observability (E5).
 
 ## Design principles
 
@@ -60,6 +62,50 @@ They sit on the interesting dates: 28 February vs 1 March 2026 in Kestria, a sup
 it, the Valdorian transition period. Tests check that every sample yields **exactly** its expected findings, that every
 rule both fails in one sample and passes in another, and that the committed files match a fresh run.
 
+## The assistant (LangGraph)
+
+![Assistant: two dates, two answers, the conflicting FAQ called out, the cited passage open on the right](docs/screenshots/02-assistant.png)
+
+```
+START → route ─┬─► clarify / out_of_scope → END
+               └─► extract_date ─┬─► question: retrieve (one search per date) → answer_grounded → END
+                                 ├─► validate: validate_invoice → retrieve_rule_docs → explain_findings → END
+                                 └─► compare:  compare_countries (one model call per country) → END
+```
+
+The model only ever fills a JSON schema (`response_format: json_schema`); code decides what is true:
+
+- **route**: intent, countries, the date *phrases* and a standalone search query. Code rules then correct it: an
+  attached invoice plus "check" means validate; naming Valdoria, Kestria or Orlavia is never refused as out of
+  scope; validation without an invoice or a comparison of one country becomes a clarifying question. No confidence
+  score: it would not be calibrated.
+- **extract_date**: `dateparser` (English and Bulgarian) turns the phrases into up to three dates; no date means
+  today, and the answer says so. An invoice is judged by its own date.
+- **answer_grounded**: answers per date from the passages in force on that date, resolves conflicts by authority and
+  publication date, and names them. Every `[DOC §n]` citation must match a retrieved passage: others are removed,
+  and an answer that cites nothing valid is replaced by "could not answer". Below the similarity gate the model is
+  not asked at all.
+- **explain_findings**: the schema only allows the report's rule ids; code checks that each is explained exactly
+  once and falls back to the engine's own message for any the model left out. A valid invoice or an unreadable file
+  is reported without the model.
+- **compare_countries**: for each country, the three best passages per aspect (model, scope, tax ID, mandatory
+  content, corrections, archiving, currency, timing), one model call per column; a cell without a valid citation
+  becomes "Not specified in the documents."
+
+`POST /api/chat` streams the run as server-sent events (each node's start and duration, the sources, findings or
+table, then the answer); the browser reads them with `fetch` because the request is a POST. Threads are kept by
+LangGraph's SQLite checkpointer, so a conversation survives a restart; a second message on a busy thread gets 409.
+Prompts live in one versioned module ([copilot/graph/prompts.py](copilot/graph/prompts.py)).
+
+With the real model (Gemma 4 26B in LM Studio), checked by hand on the demo questions: the Valdorian question for
+30 June and 1 July gets two different answers and names the older FAQ's conflicting date; the Kestrian demo invoice
+gets exactly the engine's two findings explained with fixes; Kestria vs Orlavia gives 13 of 16 cells cited.
+Two things the first live runs found, both fixed and re-checked: the conflict was never mentioned (0/3 → 3/3 after
+making the instruction concrete), and a Bulgarian question about Kestria was refused as out of scope (now a code
+rule). Real-model evals with numbers come in E5.
+
+![Compare: Kestria vs Orlavia, every cell cited or "not specified"](docs/screenshots/03-compare.png)
+
 ## Date-aware retrieval
 
 `copilot/kb/` turns the corpus into ≤ 600-character chunks (one per `##` section, long sections split with overlap),
@@ -101,21 +147,24 @@ pip install -r requirements.txt
 uvicorn server:app --port 8000          # or: docker compose up
 ```
 
-Open `http://localhost:8000`, pick a sample and press Validate. API: `/api/health`, `/api/corpus`,
+Open `http://localhost:8000`. The Assistant and Compare tabs need an OpenAI-compatible model server (developed with
+LM Studio and Gemma 4 26B; see [.env.example](.env.example)); the Validate tab works without one. API: `/api/chat`,
+`/api/attachments`, `/api/threads/{id}`, `/api/health`, `/api/corpus`,
 `/api/rules?country=KS&transaction_type=B2G&as_of=2026-03-05`, `/api/samples`, and
 
 ```bash
 curl -X POST --data-binary @samples/invoices/ks-demo-old-rate-no-ksk-total.xml http://localhost:8000/api/validate
 ```
 
-The LLM (from E3) is any OpenAI-compatible server; see [.env.example](.env.example).
-
 ## Tests
+
+No GPU, model or network needed: a scripted fake LM Studio answers per JSON schema (and refuses scripted answers
+that do not match the request's schema), and a hashing embedder stands in for the ONNX model.
 
 ```bash
 pip install -r requirements-dev.txt
 python -m playwright install chromium
-python -m pytest --cov=copilot --cov=server        # 232 tests, 99 % coverage, incl. Playwright
+python -m pytest --cov=copilot --cov=server        # 289 tests, 99 % coverage, incl. Playwright
 ```
 
 ## License

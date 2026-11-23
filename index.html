@@ -51,18 +51,101 @@
     details summary { cursor: pointer; color: var(--muted); font-size: 13px; }
     pre { background: #0b1015; border: 1px solid var(--line); border-radius: 8px; padding: 12px; overflow-x: auto; font-size: 12px; max-height: 420px; }
     .error-box { border: 1px solid var(--bad); border-radius: 8px; padding: 10px 12px; color: var(--bad); }
-    @media (max-width: 760px) { .app { grid-template-columns: 1fr; } aside { border-right: 0; border-bottom: 1px solid var(--line); } }
+    .view[hidden] { display: none !important; }
+    .chat { display: grid; grid-template-columns: 1fr minmax(280px, 380px); min-height: calc(100vh - 66px); }
+    .chat main { gap: 12px; }
+    #log { flex: 1; display: flex; flex-direction: column; gap: 14px; overflow-y: auto; }
+    .msg { max-width: 860px; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--line); }
+    .msg.user { align-self: flex-end; background: var(--panel-2); }
+    .msg.assistant { background: var(--panel); }
+    .msg .text { white-space: pre-wrap; line-height: 1.5; }
+    .msg .meta { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+    .chip { background: transparent; border: 1px solid var(--line); color: var(--accent); border-radius: 999px; padding: 2px 10px; font: inherit; font-size: 12px; cursor: pointer; }
+    .chip:hover { border-color: var(--accent); }
+    .msg.error { border-color: var(--bad); color: var(--bad); }
+    #progress { color: var(--muted); font-size: 12px; min-height: 1.2em; }
+    #progress .step.done { color: var(--ok); }
+    form.ask { display: flex; gap: 8px; align-items: flex-end; }
+    form.ask textarea { flex: 1; resize: vertical; min-height: 44px; background: var(--panel-2); color: var(--text); border: 1px solid var(--line); border-radius: 10px; padding: 10px; font: inherit; }
+    .attach-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 13px; color: var(--muted); }
+    .secondary { background: transparent; color: var(--text); border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; font: inherit; cursor: pointer; }
+    .examples { display: flex; flex-direction: column; gap: 6px; }
+    .examples button { text-align: left; }
+    #passage .heading { font-weight: 600; margin: 4px 0; }
+    #passage .body { white-space: pre-wrap; font-size: 13px; line-height: 1.5; }
+    .compare-form { display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-end; }
+    .compare-form fieldset { border: 1px solid var(--line); border-radius: 10px; display: flex; gap: 12px; padding: 8px 12px; }
+    .compare-form label.inline { flex-direction: row; align-items: center; gap: 6px; color: var(--text); }
+    input[type=date] { background: var(--panel-2); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; font: inherit; }
+    table.compare td { min-width: 200px; }
+    table.compare td.na { color: var(--muted); }
+    .single { padding: 20px 24px; display: flex; flex-direction: column; gap: 16px; }
+    @media (max-width: 760px) { .app, .chat { grid-template-columns: 1fr; } aside { border-right: 0; border-bottom: 1px solid var(--line); } }
 </style>
 </head>
 <body>
 <header>
     <div>
         <h1>E-Invoice Compliance Copilot</h1>
-        <div class="sub">Fictional countries, real UBL 2.1 · validation by a deterministic rule engine</div>
+        <div class="sub">Fictional countries, real UBL 2.1 · the model explains, the rule engine decides</div>
     </div>
-    <nav role="tablist"><button role="tab" aria-selected="true" type="button">Validate</button></nav>
+    <nav role="tablist">
+        <button role="tab" aria-selected="true" type="button" data-view="assistant">Assistant</button>
+        <button role="tab" aria-selected="false" type="button" data-view="validate">Validate</button>
+        <button role="tab" aria-selected="false" type="button" data-view="compare">Compare</button>
+    </nav>
 </header>
-<div class="app">
+
+<div class="chat view" id="view-assistant">
+    <main>
+        <div id="log">
+            <p class="empty" id="welcome">Ask about the e-invoicing rules of Valdoria, Kestria or Orlavia for a date, attach a
+                UBL invoice to have it checked and explained, or ask for a comparison. Answers cite the document sections
+                they rest on; click a reference to read it.</p>
+        </div>
+        <div id="progress" aria-live="polite"></div>
+        <div class="attach-row">
+            <label>Attach invoice
+                <select id="chat-sample"><option value="">No invoice</option></select>
+            </label>
+            <button class="secondary" id="chat-file-button" type="button">…or a file</button>
+            <input id="chat-file" type="file" accept=".xml,application/xml,text/xml" hidden>
+            <span id="attached"></span>
+            <button class="secondary" id="new-thread" type="button">New conversation</button>
+        </div>
+        <form class="ask" id="ask">
+            <textarea id="message" rows="2" placeholder="e.g. Is a small Valdorian company obliged to use VCP on 30 June 2026? And on 1 July?"></textarea>
+            <button class="primary" id="send" type="submit">Send</button>
+        </form>
+    </main>
+    <aside>
+        <div>
+            <h2>Try</h2>
+            <div class="examples" id="examples"></div>
+        </div>
+        <div id="passage">
+            <h2>Source</h2>
+            <p class="empty">Click a reference such as <span class="mono">VD-AM-03 §2</span> to read the passage.</p>
+        </div>
+    </aside>
+</div>
+
+<div class="single view" id="view-compare" hidden>
+    <form class="compare-form" id="compare-form">
+        <fieldset>
+            <label class="inline"><input type="checkbox" name="country" value="VD"> Valdoria</label>
+            <label class="inline"><input type="checkbox" name="country" value="KS" checked> Kestria</label>
+            <label class="inline"><input type="checkbox" name="country" value="OL" checked> Orlavia</label>
+        </fieldset>
+        <label>Date<input type="date" id="compare-date"></label>
+        <button class="primary" id="compare" type="submit">Compare</button>
+        <span id="compare-progress" class="sub"></span>
+    </form>
+    <div id="compare-result"><p class="empty">Pick two or three countries and a date. Every cell cites the passage it
+        comes from, or says it is not specified in the documents.</p></div>
+</div>
+
+<div class="app view" id="view-validate" hidden>
     <aside>
         <div>
             <h2>Invoice</h2>
@@ -129,6 +212,7 @@ async function loadSamples() {
         group.append(el("option", { value: sample.name }, sample.name));
     }
     $("sample").append(groups.valid, groups.errors);
+    for (const sample of data.samples) $("chat-sample").append(el("option", { value: sample.name }, sample.name));
 }
 
 $("sample").addEventListener("change", async (event) => {
@@ -216,6 +300,252 @@ function renderReport(report) {
     parts.push(el("details", {}, el("summary", {}, "Invoice XML"), el("pre", { id: "xml" }, xml)));
     $("result").replaceChildren(...parts);
 }
+
+// --- tabs ------------------------------------------------------------------------------------------------------
+function showView(name) {
+    for (const tab of document.querySelectorAll("nav [role=tab]")) {
+        tab.setAttribute("aria-selected", String(tab.dataset.view === name));
+    }
+    for (const view of document.querySelectorAll(".view")) view.hidden = view.id !== `view-${name}`;
+}
+for (const tab of document.querySelectorAll("nav [role=tab]")) {
+    tab.addEventListener("click", () => { showView(tab.dataset.view); history.replaceState(null, "", `#${tab.dataset.view}`); });
+}
+function viewFromHash() {
+    const name = location.hash.slice(1);
+    showView(["validate", "compare"].includes(name) ? name : "assistant");
+}
+window.addEventListener("hashchange", viewFromHash);
+viewFromHash();
+
+// --- streaming chat (POST + server-sent events, read with fetch: EventSource is GET-only) ----------------------
+async function streamChat(body, onEvent) {
+    const response = await fetch("/api/chat", {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+    });
+    if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        const detail = Array.isArray(data.detail) ? data.detail.map((d) => d.msg).join("; ") : data.detail;
+        throw new Error(detail ?? response.statusText);
+    }
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    for (;;) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        let cut;
+        while ((cut = buffer.indexOf("\n\n")) >= 0) {
+            const block = buffer.slice(0, cut);
+            buffer = buffer.slice(cut + 2);
+            const data = block.split("\n").find((line) => line.startsWith("data: "));
+            if (data) onEvent(JSON.parse(data.slice(6)));
+        }
+    }
+}
+
+const NODE_LABELS = {
+    route: "understanding", extract_date: "dates", retrieve: "searching documents", answer_grounded: "answering",
+    validate_invoice: "rule engine", retrieve_rule_docs: "rule documents", explain_findings: "explaining",
+    compare_countries: "comparing", clarify: "clarifying", out_of_scope: "scope",
+};
+
+function progressLine(target, event) {
+    const label = NODE_LABELS[event.node] ?? event.node;
+    if (event.event === "node_started") {
+        target.append(el("span", { class: "step", "data-node": event.node }, `${label} … `));
+    } else if (event.event === "node_finished") {
+        const step = [...target.querySelectorAll(".step")].reverse().find((s) => s.dataset.node === event.node);
+        if (step) {
+            step.textContent = `${label} ${event.ms} ms · `;
+            step.classList.add("done");
+        }
+    }
+}
+
+async function showPassage(ref) {
+    const match = /^(.+) §(\d+)$/.exec(ref);
+    if (!match) return;
+    const box = $("passage");
+    box.replaceChildren(el("h2", {}, "Source"), el("p", { class: "empty" }, `Loading ${ref}…`));
+    showView("assistant");
+    const response = await fetch(`/api/corpus/${encodeURIComponent(match[1])}`);
+    if (!response.ok) {
+        box.replaceChildren(el("h2", {}, "Source"), el("p", { class: "error-box" }, `${ref} not found`));
+        return;
+    }
+    const doc = await response.json();
+    const section = doc.sections.find((s) => s.number === Number(match[2]));
+    box.replaceChildren(el("h2", {}, "Source"),
+        el("div", { class: "ref", id: "passage-ref" }, ref),
+        el("div", { class: "sub" }, `${doc.title} · ${doc.doc_type} · authority ${doc.authority} · in force ${doc.valid_from} – ${doc.valid_to ?? "open"}`),
+        el("div", { class: "heading" }, section ? section.heading : "(section not found)"),
+        el("div", { class: "body", id: "passage-text" }, section ? section.text : ""));
+}
+
+function chip(ref) {
+    const button = el("button", { class: "chip", type: "button" }, ref);
+    button.addEventListener("click", () => showPassage(ref));
+    return button;
+}
+
+function findingsTable(report) {
+    return el("table", { class: "chat-findings" },
+        el("thead", {}, el("tr", {}, ...["Rule", "Severity", "Message", "Location"].map((h) => el("th", {}, h)))),
+        el("tbody", {}, ...report.findings.map((f) => el("tr", {},
+            el("td", { class: "mono rule" }, f.rule_id),
+            el("td", {}, el("span", { class: `badge ${f.severity}` }, f.severity)),
+            el("td", {}, f.message),
+            el("td", { class: "mono loc" }, f.location)))));
+}
+
+const COUNTRY_NAMES = { VD: "Valdoria", KS: "Kestria", OL: "Orlavia" };
+
+function compareTable(comparison) {
+    return el("table", { class: "compare", id: "compare-table" },
+        el("thead", {}, el("tr", {}, el("th", {}, `As of ${comparison.as_of}`),
+            ...comparison.countries.map((c) => el("th", {}, COUNTRY_NAMES[c] ?? c)))),
+        el("tbody", {}, ...comparison.aspects.map((aspect) => el("tr", {},
+            el("th", {}, aspect.label),
+            ...comparison.countries.map((c) => {
+                const cell = comparison.cells[aspect.id][c];
+                return cell.citation ? el("td", {}, el("div", {}, cell.text), chip(cell.citation))
+                                     : el("td", { class: "na" }, cell.text);
+            })))));
+}
+
+const DATE_SOURCES = { question: "from the question", invoice: "invoice date", today: "today" };
+let threadId = null;
+let attachmentId = null;
+
+function addMessage(role, content) {
+    $("welcome")?.remove();
+    const node = el("div", { class: `msg ${role}` }, el("div", { class: "text" }, content));
+    $("log").append(node);
+    node.scrollIntoView({ block: "end" });
+    return node;
+}
+
+function renderFinal(event, extra) {
+    const node = addMessage("assistant", event.answer);
+    node.append(...extra);
+    const meta = el("div", { class: "meta" });
+    if (event.dates?.length) {
+        meta.append(el("span", { class: "badge", "data-testid": "dates" },
+            `as of ${event.dates.join(", ")} (${DATE_SOURCES[event.date_source] ?? "?"})`));
+    }
+    for (const ref of event.citations ?? []) meta.append(chip(ref));
+    node.append(meta);
+    if (event.notes?.length) node.append(el("ul", { class: "notes" }, ...event.notes.map((n) => el("li", {}, n))));
+}
+
+async function send(message) {
+    addMessage("user", message);
+    const progress = $("progress");
+    progress.replaceChildren();
+    $("send").disabled = true;
+    const extra = [];
+    try {
+        await streamChat({ message, thread_id: threadId, attachment_id: attachmentId }, (event) => {
+            if (event.event === "thread") threadId = event.thread_id;
+            else if (event.event === "node_started" || event.event === "node_finished") progressLine(progress, event);
+            else if (event.event === "findings") extra.push(findingsTable(event.report));
+            else if (event.event === "table") extra.push(compareTable(event.comparison));
+            else if (event.event === "error") addMessage("assistant error", event.message);
+            else if (event.event === "final") renderFinal(event, extra);
+        });
+    } catch (error) {
+        addMessage("assistant error", `Request failed: ${error.message}`);
+    } finally {
+        $("send").disabled = false;
+    }
+}
+
+$("ask").addEventListener("submit", (event) => {
+    event.preventDefault();
+    const message = $("message").value.trim();
+    if (!message) return;
+    $("message").value = "";
+    send(message);
+});
+$("message").addEventListener("keydown", (event) => {
+    if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); $("ask").requestSubmit(); }
+});
+
+async function attach(bytes, label) {
+    const response = await fetch("/api/attachments", {
+        method: "POST", headers: { "Content-Type": "application/xml" }, body: bytes,
+    });
+    const data = await response.json();
+    if (!response.ok) {
+        attachmentId = null;
+        $("attached").textContent = `Upload failed: ${data.detail}`;
+        return;
+    }
+    attachmentId = data.attachment_id;
+    $("attached").textContent = `Attached: ${label}`;
+}
+$("chat-sample").addEventListener("change", async (event) => {
+    if (!event.target.value) { attachmentId = null; $("attached").textContent = ""; return; }
+    const bytes = await (await fetch(`/api/samples/${encodeURIComponent(event.target.value)}`)).arrayBuffer();
+    await attach(bytes, event.target.value);
+});
+$("chat-file-button").addEventListener("click", () => $("chat-file").click());
+$("chat-file").addEventListener("change", async (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+    $("chat-sample").value = "";
+    await attach(await file.arrayBuffer(), file.name);
+});
+$("new-thread").addEventListener("click", () => {
+    threadId = null;
+    $("log").replaceChildren();
+    $("progress").replaceChildren();
+});
+
+const EXAMPLES = [
+    "Is a small Valdorian company obliged to use VCP on 30 June 2026? And on 1 July?",
+    "What is the reduced VAT rate in Kestria on 28 February 2026 and on 1 March 2026?",
+    "How is the hash in the Orlavian QR payload calculated?",
+    "Каква е крайната дата за докладване в Орлавия?",
+];
+for (const example of EXAMPLES) {
+    const button = el("button", { class: "secondary", type: "button" }, example);
+    button.addEventListener("click", () => send(example));
+    $("examples").append(button);
+}
+
+// --- compare tab: the same graph, asked in words -----------------------------------------------------------------
+$("compare-form").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const picked = [...document.querySelectorAll("input[name=country]:checked")].map((c) => COUNTRY_NAMES[c.value]);
+    const result = $("compare-result");
+    if (picked.length < 2) {
+        result.replaceChildren(el("p", { class: "error-box" }, "Pick at least two countries."));
+        return;
+    }
+    const day = $("compare-date").value;
+    const progress = $("compare-progress");
+    progress.replaceChildren();
+    $("compare").disabled = true;
+    result.replaceChildren(el("p", { class: "empty" }, "Comparing… (one model call per country)"));
+    try {
+        await streamChat({ message: `Compare ${picked.join(" and ")}${day ? ` on ${day}` : ""}` }, (e) => {
+            if (e.event === "node_started" || e.event === "node_finished") progressLine(progress, e);
+            else if (e.event === "table") result.replaceChildren(compareTable(e.comparison));
+            else if (e.event === "error") result.replaceChildren(el("p", { class: "error-box" }, e.message));
+            else if (e.event === "final" && e.intent !== "compare") {
+                result.replaceChildren(el("p", { class: "error-box" }, e.answer));
+            } else if (e.event === "final") result.prepend(el("p", { id: "compare-summary" }, e.answer));
+        });
+    } catch (error) {
+        result.replaceChildren(el("p", { class: "error-box" }, `Request failed: ${error.message}`));
+    } finally {
+        $("compare").disabled = false;
+    }
+});
+fetch("/api/health").then((r) => r.json()).then((h) => { $("compare-date").value = h.today; });
 
 loadSamples();
 </script>
