@@ -16,7 +16,7 @@ types a message instead, two one-letter questions go to the local model in paral
 
 The gate never edits a draft and never creates anything the approval step would not.
 """
-from . import config
+from . import config, observability
 from .decide import Action, Choice, Decider, Severity, YesNo
 from .decide.core import choose_action
 
@@ -93,6 +93,13 @@ def route_check(intent: str, gate) -> str | None:
     return None
 
 
+def trace(decision, action: str, outcome: str) -> None:
+    """Put a gate question on the span of the node that asked it, for the trace and the metrics (review T15.7a)."""
+    observability.add_gate({"question": decision.question_id, "answer": decision.label,
+                            "p": round(decision.p, 3) if decision.p is not None else None, "action": action,
+                            "outcome": outcome, "ms": decision.latency_ms})
+
+
 def draft_summary(draft: dict) -> str:
     return (f"\"{draft.get('title')}\" ({draft.get('country')}, effective {draft.get('effective_date') or 'not set'}, "
             f"priority {draft.get('priority')})")
@@ -113,4 +120,7 @@ async def approval_from_text(message: str, draft: dict) -> tuple[Action, list[di
     agree, instruction = await decider().ask_many([APPROVE_TICKET, INSTRUCTION], message,
                                                   {"draft": draft_summary(draft)})
     action = approval_action(agree, instruction)
+    outcome = {Action.ACT: "approved", Action.CONFIRM: "asked again"}.get(action, "not an approval")
+    for decision in (agree, instruction):
+        trace(decision, action.value, outcome)
     return action, [{**d.record.model_dump(mode="json"), "policy_action": action.value} for d in (agree, instruction)]

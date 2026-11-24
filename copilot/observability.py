@@ -46,6 +46,7 @@ CREATE TABLE IF NOT EXISTS spans (
     tokens_out INTEGER,
     llm_calls INTEGER NOT NULL DEFAULT 0,
     doc_ids_json TEXT,
+    gates_json TEXT,                 -- decision-gate questions asked by this node (question, answer, p, action, ms)
     error TEXT
 );
 CREATE INDEX IF NOT EXISTS spans_run ON spans(run_id);
@@ -55,11 +56,21 @@ current_run: contextvars.ContextVar[str | None] = contextvars.ContextVar("curren
 current_span: contextvars.ContextVar[dict | None] = contextvars.ContextVar("current_span", default=None)
 
 
+_ready: set[str] = set()   # databases whose schema is in place (created once per process, not on every write)
+
+
 async def _db() -> aiosqlite.Connection:
     config.APP_DB.parent.mkdir(parents=True, exist_ok=True)
     db = await aiosqlite.connect(config.APP_DB)
     db.row_factory = aiosqlite.Row
-    await db.executescript(SCHEMA)
+    if str(config.APP_DB) not in _ready:
+        await db.executescript(SCHEMA)
+        async with db.execute("PRAGMA table_info(spans)") as cur:
+            columns = {row["name"] for row in await cur.fetchall()}
+        if "gates_json" not in columns:               # a database from before the gates were traced
+            await db.execute("ALTER TABLE spans ADD COLUMN gates_json TEXT")
+            await db.commit()
+        _ready.add(str(config.APP_DB))
     return db
 
 
@@ -110,7 +121,7 @@ async def _execute(sql: str, params: tuple):
 
 def begin_span() -> dict:
     """Called by a node when it starts: a fresh counter for this node's LLM calls."""
-    span = {"tokens_in": 0, "tokens_out": 0, "llm_calls": 0}
+    span = {"tokens_in": 0, "tokens_out": 0, "llm_calls": 0, "gates": []}
     current_span.set(span)
     return span
 
@@ -122,6 +133,15 @@ def add_tokens(tokens_in: int | None, tokens_out: int | None):
         span["llm_calls"] += 1
         span["tokens_in"] += tokens_in or 0
         span["tokens_out"] += tokens_out or 0
+
+
+def add_gate(record: dict):
+    """Called for every decision-gate question (copilot.decisions.trace): it is a model call of the node that asked.
+    Its tokens are not known here (the gate module keeps its own HTTP client), so only the call is counted."""
+    span = current_span.get()
+    if span is not None:
+        span["llm_calls"] += 1
+        span["gates"].append(record)
 
 
 def doc_ids(result: dict | None) -> list[str]:
@@ -141,9 +161,9 @@ async def record_span(node: str, started_at: str, ms: int, status: str, span: di
         return
     await _execute(
         "INSERT INTO spans (run_id, node, started_at, ms, status, tokens_in, tokens_out, llm_calls, doc_ids_json, "
-        "error) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "gates_json, error) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         (run_id, node, started_at, ms, status, span["tokens_in"] or None, span["tokens_out"] or None,
-         span["llm_calls"], json.dumps(doc_ids(result)), error))
+         span["llm_calls"], json.dumps(doc_ids(result)), json.dumps(span.get("gates") or []), error))
 
 
 async def get_run(run_id: str) -> dict | None:
@@ -162,6 +182,7 @@ async def get_run(run_id: str) -> dict | None:
     run["findings"] = json.loads(run.pop("findings_json") or "null")
     for span in spans:
         span["doc_ids"] = json.loads(span.pop("doc_ids_json") or "[]")
+        span["gates"] = json.loads(span.pop("gates_json") or "[]")
     run["spans"] = spans
     return run
 
@@ -178,7 +199,7 @@ async def metrics() -> dict:
     try:
         async with db.execute("SELECT * FROM runs WHERE status != 'running'") as cur:
             runs = [dict(r) for r in await cur.fetchall()]
-        async with db.execute("SELECT node, ms, status, tokens_in, tokens_out FROM spans") as cur:
+        async with db.execute("SELECT node, ms, status, tokens_in, tokens_out, gates_json FROM spans") as cur:
             spans = [dict(r) for r in await cur.fetchall()]
     finally:
         await db.close()
@@ -189,12 +210,16 @@ async def metrics() -> dict:
     questions = [r for r in runs if r["intent"] == "question" and r["abstained"] is not None]
     decisions = [r["approved"] for r in runs if r["approved"] is not None]
     findings = Counter(rule for r in runs for rule in json.loads(r["findings_json"] or "[]"))
+    gate_actions: dict[str, Counter] = defaultdict(Counter)
+    for span in spans:
+        for gate in json.loads(span["gates_json"] or "[]"):
+            gate_actions[gate["question"]][gate["action"]] += 1
     end_to_end = [r["ms"] for r in runs if r["ms"] is not None and r["status"] in ("ok", "waiting")]
     return {
         "runs": len(runs),
         "runs_per_intent": dict(Counter(r["intent"] or "none" for r in runs).most_common()),
         "failed_runs": sum(r["status"] == "failed" for r in runs),
-        "llm_errors": sum(s["status"] == "error" for s in spans),
+        "node_errors": sum(s["status"] == "error" for s in spans),
         "latency_ms": {
             "end_to_end": {"p50": percentile(end_to_end, 50), "p95": percentile(end_to_end, 95), "n": len(end_to_end)},
             "nodes": {node: {"p50": percentile(v, 50), "p95": percentile(v, 95), "n": len(v)}
@@ -204,4 +229,5 @@ async def metrics() -> dict:
         "findings_per_rule": dict(findings.most_common()),
         "tickets_created": len({r["ticket"] for r in runs if r["ticket"]}),
         "approvals": {"approved": sum(1 for d in decisions if d), "rejected": sum(1 for d in decisions if not d)},
+        "gate_actions": {question: dict(actions) for question, actions in sorted(gate_actions.items())},
     }

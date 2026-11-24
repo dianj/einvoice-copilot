@@ -95,6 +95,8 @@ async def route(state) -> dict:
     if check is not None:
         gate = await check                    # never raises: no usable answer keeps the model's intent
         reason = decisions.route_check(intent, gate) if intent == raw else None   # code rules stand
+        decisions.trace(gate, gate.action.value, f"clarify ({reason})" if reason else
+                        ("kept the router's intent" if intent == raw else "code rule decided"))
         if reason:
             ranked = sorted(gate.probs, key=gate.probs.get, reverse=True)
             options = list(dict.fromkeys([intent, *ranked]))[:2]

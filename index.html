@@ -718,8 +718,12 @@ function traceButton(runId, message) {
             bar.style.width = `${Math.max(1, (span.ms / longest) * 100)}%`;
             const calls = span.llm_calls === 1 ? "1 LLM call" : `${span.llm_calls} LLM calls`;
             const details = [span.status !== "ok" ? span.status : null,
-                span.llm_calls ? `${calls}, ${span.tokens_in} → ${span.tokens_out} tokens` : null,
-                span.doc_ids.length ? `documents: ${span.doc_ids.join(", ")}` : null].filter(Boolean);
+                span.llm_calls ? (span.tokens_in == null ? calls
+                    : `${calls}, ${span.tokens_in} → ${span.tokens_out} tokens`) : null,
+                span.doc_ids.length ? `documents: ${span.doc_ids.join(", ")}` : null,
+                ...(span.gates ?? []).map((g) => `gate ${g.question}: ${g.answer ?? "no answer"}`
+                    + `${g.p == null ? "" : ` p ${g.p.toFixed(2)}`} → ${g.action} (${g.outcome}), ${g.ms} ms`)
+            ].filter(Boolean);
             panel.append(el("div", { class: "span" }, el("span", { class: "mono" }, span.node), el("div", {}, bar),
                 el("span", { class: "mono" }, `${span.ms} ms`),
                 ...(details.length ? [el("div", { class: "detail" }, details.join(" · "))] : [])));
@@ -779,7 +783,7 @@ async function loadMetrics() {
             tile(seconds(e2e.p50), `median run (p95 ${seconds(e2e.p95)})`),
             tile(pct(m.abstention_rate), "questions answered \"not in the documents\""),
             tile(String(m.tickets_created), `tickets (${m.approvals.approved} approved, ${m.approvals.rejected} rejected)`),
-            tile(String(m.failed_runs), `failed runs (${m.llm_errors} node errors)`),
+            tile(String(m.failed_runs), `failed runs (${m.node_errors} node errors)`),
             tile(`${Math.round(m.tokens.in / 1000)}k / ${Math.round(m.tokens.out / 1000)}k`, "tokens in / out")),
         el("div", { class: "metrics-grid" },
             el("div", {}, el("h2", {}, "Latency per node (median / p95)"),

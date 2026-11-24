@@ -58,7 +58,8 @@ async def stream_turn(graph, thread_id: str, message: str, attachment_id: str | 
         snapshot = await graph.aget_state({"configurable": {"thread_id": thread_id}})
         waiting = pending_approval(snapshot)
         if waiting:
-            verdict, records = await decisions.approval_from_text(message, waiting["draft"])
+            run_id, verdict, records = await _approval_gate_run(thread_id, message, waiting["draft"])
+            yield {"event": "run", "run_id": run_id}
             yield {"event": "gate", "question": "einvoice.approve_ticket", "action": verdict.value,
                    "records": records}
             lang = snapshot.values.get("language", "en")
@@ -68,12 +69,25 @@ async def stream_turn(graph, thread_id: str, message: str, attachment_id: str | 
                 return
             if verdict == Action.CONFIRM:
                 yield {"event": "approval", **waiting}
-                yield {"event": "final", "thread_id": thread_id, "prompt_version": PROMPT_VERSION,
+                yield {"event": "final", "thread_id": thread_id, "run_id": run_id, "prompt_version": PROMPT_VERSION,
                        "awaiting_approval": True, **{k: snapshot.values.get(k) for k in FINAL_FIELDS},
                        "answer": text(lang, "approval_unclear"), "citations": [], "notes": []}
                 return
     async for event in _stream(graph, thread_id, turn_input(message, attachment_id, params, action)):
         yield event
+
+
+async def _approval_gate_run(thread_id: str, message: str, draft: dict):
+    """The typed-approval check is asked outside the graph, so it is stored as a run of its own with one span
+    (`approval_gate`): the trace then shows the two questions, their answers and the action."""
+    started, started_at = time.perf_counter(), observability._now()
+    run_id = await observability.start_run(thread_id, "approval_gate", PROMPT_VERSION)
+    span = observability.begin_span()
+    verdict, records = await decisions.approval_from_text(message, draft)
+    await observability.record_span("approval_gate", started_at, int((time.perf_counter() - started) * 1000), "ok",
+                                    span, None, None)
+    await observability.finish_run(run_id, started, "ok", state={"intent": "approval_gate"})
+    return run_id, verdict, records
 
 
 async def stream_resume(graph, thread_id: str, decision: dict) -> AsyncIterator[dict]:
