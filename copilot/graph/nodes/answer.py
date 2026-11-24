@@ -15,6 +15,8 @@ from copilot.kb.retriever import retriever
 from copilot.llm import complete_json
 
 VAGUE_WORDS = 4   # a message this short gets the answer plus the other things the assistant can do
+# The model sometimes writes a schema field into the text ("in_documents: false. Предоставените документи ...").
+FIELD_ECHO = re.compile(r"^\s*in_documents\s*:\s*(true|false)\s*[.,;:]?\s*", re.I)
 BRACKET = re.compile(r"\s?\[([^\[\]]{3,120})\]")
 # Any document-like reference, not only known prefixes: an invented "XX-LAW-99 §1" must be caught, not ignored.
 REF = re.compile(r"\b([A-Z]{2,5}-(?:[A-Z]+-)?\d{2})\s*§\s*(\d+)")
@@ -62,7 +64,7 @@ async def answer_grounded(state) -> dict:
     result = await complete_json(prompts.ANSWER_SYSTEM.format(language=prompts.LANGUAGE_NAMES[lang]),
                                  prompts.answer_user(state["user_input"], state["dates"], passages),
                                  prompts.ANSWER_SCHEMA, "grounded_answer")
-    answer = str(result.data.get("answer", "")).strip()
+    answer = FIELD_ECHO.sub("", str(result.data.get("answer", ""))).strip()
     cleaned, valid, invalid = check_citations(answer, {p["ref"] for p in passages})
     notes = list(state.get("notes", []))
     if invalid:

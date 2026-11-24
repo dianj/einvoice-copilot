@@ -60,11 +60,14 @@ def resolve_dates(phrases: list[str], message: str, today: date) -> tuple[list[d
 
 @traced("extract_date")
 async def extract_date(state) -> dict:
+    earlier = list(state.get("notes", []))     # route's notes ("cannot be skipped") stay
+    if state.get("intent") == "validate":
+        return {"notes": earlier}               # the invoice's own date is used (validate_invoice)
     today = config.today()
     # dateparser loads its language data on first use: keep that off the event loop
     dates, notes = await asyncio.to_thread(resolve_dates, state.get("date_phrases", []), state["user_input"],
                                            today)
     if not dates:
         return {"dates": [today.isoformat()], "date_source": "today",
-                "notes": notes + [f"No date in the question: answered for today, {today.isoformat()}."]}
-    return {"dates": [d.isoformat() for d in dates], "date_source": "question", "notes": notes}
+                "notes": earlier + notes + [f"No date in the question: answered for today, {today.isoformat()}."]}
+    return {"dates": [d.isoformat() for d in dates], "date_source": "question", "notes": earlier + notes}

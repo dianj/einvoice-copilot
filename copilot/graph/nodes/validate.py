@@ -28,7 +28,7 @@ async def validate_invoice(state) -> dict:
     report = await asyncio.to_thread(validate, data, **params)
     day = (report.rule_date or date.today()).isoformat()
     return {"report": report.model_dump(mode="json"), "dates": [day], "date_source": "invoice",
-            "notes": list(report.notes)}
+            "notes": list(state.get("notes", [])) + list(report.notes)}   # keep route's ("cannot be skipped")
 
 
 def route_after_validation(state) -> str:
