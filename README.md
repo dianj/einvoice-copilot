@@ -144,6 +144,12 @@ Tickets go through one interface with two implementations: a local fake on SQLit
 on 429/5xx/connection errors, the idempotency key looked up before insert, caller text never placed in an encoded
 query). One contract test suite runs against the fake, against the REST adapter with a fake Table API, and, with
 `SN_LIVE_TESTS=1`, against a real instance ([setup](docs/SERVICENOW_SETUP.md)). The Tickets tab lists them.
+Checked against a ServiceNow Personal Developer Instance: the 19 contract tests pass live, and a draft from the chat
+became a real `LOCREQ` record after the approval. The live run found one thing the fakes could not: ServiceNow
+silently dropped the title, because the integration user may write the table's own columns but not the field
+inherited from Task; three field-level access rules fix it (in the setup guide).
+
+![ServiceNow: the approved draft as a Localization Requirement record, every field from the chat](docs/screenshots/05-servicenow-ticket.png)
 
 ![Compare: Kestria vs Orlavia, every cell cited or "not specified"](docs/screenshots/03-compare.png)
 
