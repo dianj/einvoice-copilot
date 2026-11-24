@@ -10,6 +10,7 @@ thread state first, on keywords second; no LLM judge. Writes evals/results/<outp
 """
 import argparse
 import json
+import math
 import os
 import re
 import statistics
@@ -417,7 +418,7 @@ def report(results: dict, cases: list[Case], repeats: dict, output: str):
         cells = []
         for lat in latencies.values():
             values = sorted(lat.get(node, []))
-            cells.append(f"{statistics.median(values):.0f} / {values[max(int(0.95 * len(values)) - 1, 0)]:.0f}"
+            cells.append(f"{statistics.median(values):.0f} / {values[max(math.ceil(0.95 * len(values)) - 1, 0)]:.0f}"
                          if values else "–")
         lines.append(f"| {node} | " + " | ".join(cells) + " |")
     RESULTS.mkdir(exist_ok=True)
@@ -434,7 +435,14 @@ def main():
     parser.add_argument("--groups", nargs="*")
     parser.add_argument("--cases", nargs="*")
     parser.add_argument("--output", default="latest")
+    parser.add_argument("--rerender", type=Path, help="write the report again from a saved results JSON (no model)")
     args = parser.parse_args()
+    if args.rerender:
+        results = json.loads(args.rerender.read_text(encoding="utf-8"))
+        ids = {r["case"] for runs in results.values() for r in runs}
+        repeats = {m: max(sum(r["case"] == i for r in runs) for i in ids) for m, runs in results.items()}
+        report(results, [c for c in CASES if c.id in ids], repeats, args.output)
+        return
     cases = [c for c in CASES if (not args.groups or c.group in args.groups) and (not args.cases or c.id in args.cases)]
     repeats = dict(zip(args.models, args.repeats or [args.repeat] * len(args.models), strict=True))
     results = {}

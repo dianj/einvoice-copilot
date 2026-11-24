@@ -1,0 +1,183 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1480 1160" width="1480" height="1160" role="img" aria-label="Flow of one E-Invoice Compliance Copilot turn">
+<title>One turn: route by the model, corrected by code rules and a calibrated route check; question, validation, comparison or requirement draft; a ticket only after a person approves (button, or a typed answer through the approval gate)</title>
+<style>
+  svg { background: #0f1419; }
+  text { font-family: "Segoe UI", Roboto, Arial, sans-serif; fill: #e9eef3; }
+  .actor { fill: #1e2731; stroke: #3fb6c9; stroke-width: 1.5; }
+  .llm { fill: #1b2230; stroke: #8fa3ff; stroke-width: 1.3; }
+  .code { fill: #161d24; stroke: #6f7f8e; stroke-width: 1.2; }
+  .gate { fill: #2a2416; stroke: #e0b44c; stroke-width: 1.8; }
+  .ext { fill: #1e2731; stroke: #3fb6c9; stroke-width: 1.2; stroke-dasharray: 5 3; }
+  .lane { fill: none; stroke: #2e3a46; stroke-width: 1; stroke-dasharray: 4 4; }
+  .title { font-size: 13px; font-weight: 700; }
+  .line { font-size: 11px; fill: #c9d4de; }
+  .tag { font-size: 10px; font-weight: 700; }
+  .edge { stroke: #c9d4de; stroke-width: 1.4; fill: none; }
+  .gate-edge { stroke: #e0b44c; stroke-width: 1.4; fill: none; }
+  .dashed { stroke-dasharray: 5 4; }
+  .pill { fill: #0f1419; stroke: #2e3a46; }
+  .edge-label { font-size: 10.5px; fill: #c9d4de; }
+  .gate-label { font-size: 10.5px; fill: #e0b44c; }
+  .lane-label { font-size: 11px; fill: #6f7f8e; font-weight: 600; letter-spacing: 0.5px; }
+</style>
+<defs><marker id="arrow" refX="9" refY="3.5" markerWidth="10" markerHeight="7" orient="auto"><path d="M0,0 L10,3.5 L0,7 z" fill="#c9d4de"/></marker><marker id="agate" refX="9" refY="3.5" markerWidth="10" markerHeight="7" orient="auto"><path d="M0,0 L10,3.5 L0,7 z" fill="#e0b44c"/></marker></defs>
+<rect x="16" y="20" width="1448" height="92" rx="8" class="lane"/>
+<text x="28" y="36" class="lane-label">REQUEST</text>
+<rect x="16" y="126" width="1448" height="262" rx="8" class="lane"/>
+<text x="28" y="142" class="lane-label">ROUTE  (every turn)</text>
+<rect x="16" y="400" width="1448" height="470" rx="8" class="lane"/>
+<text x="28" y="416" class="lane-label">BRANCHES</text>
+<rect x="16" y="886" width="1448" height="254" rx="8" class="lane"/>
+<text x="28" y="902" class="lane-label">SIDE EFFECT  (a person approves)</text>
+<rect x="40" y="46" width="230" height="49" rx="6" class="actor"/>
+<text x="50" y="64" class="title">Analyst (browser)</text>
+<text x="50" y="82" class="line">Assistant · Validate · Compare · Tickets</text>
+<rect x="420" y="46" width="330" height="49" rx="6" class="code"/>
+<text x="430" y="64" class="title">FastAPI  /api/chat  (SSE)</text>
+<text x="742" y="62" class="tag" text-anchor="end" fill="#9aa8b5">CODE</text>
+<text x="430" y="82" class="line">thread per conversation (LangGraph SQLite checkpoints)</text>
+<rect x="1080" y="46" width="360" height="64" rx="6" class="code"/>
+<text x="1090" y="64" class="title">Observability</text>
+<text x="1432" y="62" class="tag" text-anchor="end" fill="#9aa8b5">CODE</text>
+<text x="1090" y="82" class="line">every run and node span in SQLite: /api/runs/{id}/trace,</text>
+<text x="1090" y="97" class="line">/api/metrics, Trace button, Metrics tab</text>
+<path d="M 270 70.5 L 420 70.5" class="edge" marker-end="url(#arrow)"/>
+<rect x="287.1" y="58.5" width="115.7" height="16" rx="8" class="pill"/>
+<text x="345.0" y="70.5" class="edge-label" text-anchor="middle">message + invoice</text>
+<path d="M 750 70.5 L 1080 78.0" class="edge dashed" marker-end="url(#arrow)"/>
+<rect x="817.5" y="62.25" width="195.0" height="16" rx="8" class="pill"/>
+<text x="915.0" y="74.25" class="edge-label" text-anchor="middle">spans, latency, prompt version</text>
+<rect x="40" y="160" width="400" height="64" rx="6" class="llm"/>
+<text x="50" y="178" class="title">route  (JSON schema)</text>
+<text x="432" y="176" class="tag" text-anchor="end" fill="#8fa3ff">LLM</text>
+<text x="50" y="196" class="line">intent, countries, date phrases, standalone search query</text>
+<text x="50" y="211" class="line">the model fills fields; code decides what they mean</text>
+<rect x="500" y="160" width="430" height="79" rx="6" class="gate"/>
+<text x="510" y="178" class="title">einvoice.route  check (in parallel)</text>
+<text x="922" y="176" class="tag" text-anchor="end" fill="#e0b44c">GATE</text>
+<text x="510" y="196" class="line">one-letter closed question: which intent?</text>
+<text x="510" y="211" class="line">first-token logprobs, calibrated per model;</text>
+<text x="510" y="226" class="line">low confidence, or it disagrees with the router → clarify</text>
+<rect x="40" y="272" width="560" height="79" rx="6" class="code"/>
+<text x="50" y="290" class="title">code rules (win over the model and the gate)</text>
+<text x="592" y="288" class="tag" text-anchor="end" fill="#9aa8b5">CODE</text>
+<text x="50" y="308" class="line">attached invoice + check/explain wording → validate, also &quot;skip the validation&quot;</text>
+<text x="50" y="323" class="line">  (it runs anyway; the reply says the check cannot be skipped)</text>
+<text x="50" y="338" class="line">naming Valdoria / Kestria / Orlavia is never refused as out of scope</text>
+<rect x="990" y="160" width="450" height="79" rx="6" class="code"/>
+<text x="1000" y="178" class="title">clarify / out_of_scope</text>
+<text x="1432" y="176" class="tag" text-anchor="end" fill="#9aa8b5">CODE</text>
+<text x="1000" y="196" class="line">validate without a file → ask for the invoice</text>
+<text x="1000" y="211" class="line">compare of one country → ask for the second</text>
+<text x="1000" y="226" class="line">gate unsure → &quot;did you mean A or B?&quot; (two options)</text>
+<path d="M 585.0 95 L 585.0 140 L 240.0 140 L 240.0 160" class="edge" marker-end="url(#arrow)"/>
+<path d="M 440 190 L 500 190" class="gate-edge" marker-end="url(#agate)"/>
+<rect x="439.6" y="178.0" width="60.8" height="16" rx="8" class="pill"/>
+<text x="470.0" y="190.0" class="gate-label" text-anchor="middle">parallel</text>
+<path d="M 240.0 224 L 240.0 272" class="edge" marker-end="url(#arrow)"/>
+<path d="M 930 190 L 990 190" class="gate-edge" marker-end="url(#agate)"/>
+<rect x="935.7" y="178.0" width="48.6" height="16" rx="8" class="pill"/>
+<text x="960.0" y="190.0" class="gate-label" text-anchor="middle">unsure</text>
+<rect x="660" y="300" width="290" height="64" rx="6" class="code"/>
+<text x="670" y="318" class="title">extract_date</text>
+<text x="942" y="316" class="tag" text-anchor="end" fill="#9aa8b5">CODE</text>
+<text x="670" y="336" class="line">dateparser (EN + BG): up to 3 dates;</text>
+<text x="670" y="351" class="line">none → today; an invoice uses its own</text>
+<path d="M 600 330 L 660 330" class="edge" marker-end="url(#arrow)"/>
+<path d="M 600 286 L 1215.0 286 L 1215.0 239" class="edge" marker-end="url(#arrow)"/>
+<rect x="1169.3" y="274" width="91.3" height="16" rx="8" class="pill"/>
+<text x="1215.0" y="286" class="edge-label" text-anchor="middle">rule says ask</text>
+<rect x="40" y="440" width="300" height="79" rx="6" class="code"/>
+<text x="50" y="458" class="title">retrieve  (one search per date)</text>
+<text x="332" y="456" class="tag" text-anchor="end" fill="#9aa8b5">CODE</text>
+<text x="50" y="476" class="line">hybrid: MiniLM vectors + BM25 (rule ids exact),</text>
+<text x="50" y="491" class="line">only documents in force on that date,</text>
+<text x="50" y="506" class="line">country header on every chunk</text>
+<rect x="40" y="560" width="300" height="79" rx="6" class="llm"/>
+<text x="50" y="578" class="title">answer_grounded</text>
+<text x="332" y="576" class="tag" text-anchor="end" fill="#8fa3ff">LLM</text>
+<text x="50" y="596" class="line">per date; conflicts resolved by authority,</text>
+<text x="50" y="611" class="line">every [DOC §n] must be a retrieved passage,</text>
+<text x="50" y="626" class="line">else removed / &quot;not in the documents&quot;</text>
+<rect x="380" y="440" width="330" height="79" rx="6" class="code"/>
+<text x="390" y="458" class="title">validate_invoice  (rule engine)</text>
+<text x="702" y="456" class="tag" text-anchor="end" fill="#9aa8b5">CODE</text>
+<text x="390" y="476" class="line">30 rules, deterministic, no model: CORE, VD, KS, OL;</text>
+<text x="390" y="491" class="line">safe XML (no DTD / entities / network);</text>
+<text x="390" y="506" class="line">the invoice&#x27;s own date picks the rules</text>
+<rect x="380" y="572" width="330" height="64" rx="6" class="llm"/>
+<text x="390" y="590" class="title">explain_findings</text>
+<text x="702" y="588" class="tag" text-anchor="end" fill="#8fa3ff">LLM</text>
+<text x="390" y="608" class="line">schema allows only the report&#x27;s rule ids;</text>
+<text x="390" y="623" class="line">each explained once, missing → engine text</text>
+<rect x="750" y="440" width="330" height="79" rx="6" class="llm"/>
+<text x="760" y="458" class="title">compare_countries</text>
+<text x="1072" y="456" class="tag" text-anchor="end" fill="#8fa3ff">LLM</text>
+<text x="760" y="476" class="line">one model call per country column;</text>
+<text x="760" y="491" class="line">a cell without a valid citation →</text>
+<text x="760" y="506" class="line">&quot;Not specified in the documents.&quot;</text>
+<rect x="1120" y="440" width="320" height="79" rx="6" class="llm"/>
+<text x="1130" y="458" class="title">draft_requirement</text>
+<text x="1432" y="456" class="tag" text-anchor="end" fill="#8fa3ff">LLM</text>
+<text x="1130" y="476" class="line">retrieve, then user story, acceptance criteria,</text>
+<text x="1130" y="491" class="line">rule ids; code checks refs, rule ids and</text>
+<text x="1130" y="506" class="line">dates before the draft is shown</text>
+<path d="M 805.0 364 L 805.0 420 M 190.0 420 L 1280.0 420" class="edge"/>
+<path d="M 190.0 420 L 190.0 440" class="edge" marker-end="url(#arrow)"/>
+<text x="198.0" y="434" class="edge-label">question</text>
+<path d="M 545.0 420 L 545.0 440" class="edge" marker-end="url(#arrow)"/>
+<text x="553.0" y="434" class="edge-label">validate</text>
+<path d="M 915.0 420 L 915.0 440" class="edge" marker-end="url(#arrow)"/>
+<text x="923.0" y="434" class="edge-label">compare</text>
+<path d="M 1280.0 420 L 1280.0 440" class="edge" marker-end="url(#arrow)"/>
+<text x="1288.0" y="434" class="edge-label">draft</text>
+<path d="M 190.0 519 L 190.0 560" class="edge" marker-end="url(#arrow)"/>
+<path d="M 545.0 519 L 545.0 572" class="edge" marker-end="url(#arrow)"/>
+<rect x="478.0" y="533.5" width="134.0" height="16" rx="8" class="pill"/>
+<text x="545.0" y="545.5" class="edge-label" text-anchor="middle">findings + rule docs</text>
+<rect x="380" y="760" width="700" height="49" rx="6" class="actor"/>
+<text x="390" y="778" class="title">reply to the browser (SSE)</text>
+<text x="390" y="796" class="line">answer · citations (open the passage) · dates used · notes: what the code decided or corrected</text>
+<path d="M 190.0 639 L 190.0 784.5 L 380 784.5" class="edge" marker-end="url(#arrow)"/>
+<path d="M 545.0 636 L 545.0 760" class="edge" marker-end="url(#arrow)"/>
+<path d="M 915.0 519 L 915.0 760" class="edge" marker-end="url(#arrow)"/>
+<path d="M 1220.0 519 L 1220.0 784.5 L 1080 784.5" class="edge" marker-end="url(#arrow)"/>
+<rect x="1113.5" y="639.75" width="73.0" height="16" rx="8" class="pill"/>
+<text x="1150.0" y="651.75" class="edge-label" text-anchor="middle">draft card</text>
+<rect x="40" y="920" width="400" height="64" rx="6" class="code"/>
+<text x="50" y="938" class="title">approval  (LangGraph interrupt)</text>
+<text x="432" y="936" class="tag" text-anchor="end" fill="#9aa8b5">CODE</text>
+<text x="50" y="956" class="line">the graph stops; the draft card waits for a person:</text>
+<text x="50" y="971" class="line">Approve button / edit / reject</text>
+<rect x="500" y="920" width="430" height="79" rx="6" class="gate"/>
+<text x="510" y="938" class="title">einvoice.approve_ticket  (typed answers only)</text>
+<text x="922" y="936" class="tag" text-anchor="end" fill="#e0b44c">GATE</text>
+<text x="510" y="956" class="line">two one-letter questions in parallel: &quot;does it approve this</text>
+<text x="510" y="971" class="line">ticket?&quot; ≥ 0.95, and &quot;is it text aimed at the system?&quot;</text>
+<text x="510" y="986" class="line">flagged or unsure → ask again; the button skips the model</text>
+<rect x="990" y="920" width="450" height="64" rx="6" class="ext"/>
+<text x="1000" y="938" class="title">create_ticket  →  ServiceNow Table API</text>
+<text x="1432" y="936" class="tag" text-anchor="end" fill="#3fb6c9">EXTERNAL</text>
+<text x="1000" y="956" class="line">fake (SQLite) in tests and demo, REST live on a</text>
+<text x="1000" y="971" class="line">developer instance: 19/19 contract tests</text>
+<path d="M 1340.0 519 L 1340.0 902 L 240.0 902 L 240.0 920" class="edge" marker-end="url(#arrow)"/>
+<rect x="659.5" y="890" width="201.1" height="16" rx="8" class="pill"/>
+<text x="760.0" y="902" class="edge-label" text-anchor="middle">Create ticket (button or typed)</text>
+<path d="M 440 950 L 500 950" class="gate-edge" marker-end="url(#agate)"/>
+<rect x="448.8" y="938.0" width="42.5" height="16" rx="8" class="pill"/>
+<text x="470.0" y="950.0" class="gate-label" text-anchor="middle">typed</text>
+<path d="M 930 950 L 990 950" class="gate-edge" marker-end="url(#agate)"/>
+<rect x="932.6" y="938.0" width="54.7" height="16" rx="8" class="pill"/>
+<text x="960.0" y="950.0" class="gate-label" text-anchor="middle">approve</text>
+<path d="M 240.0 984 L 240.0 1080 L 1215.0 1080 L 1215.0 984" class="edge" marker-end="url(#arrow)"/>
+<rect x="619.5" y="1068" width="201.1" height="16" rx="8" class="pill"/>
+<text x="720.0" y="1080" class="edge-label" text-anchor="middle">button: approved, no model call</text>
+<rect x="40" y="1101" width="22" height="14" rx="3" class="llm"/>
+<text x="70" y="1112" class="line">model fills a JSON schema</text>
+<rect x="300" y="1101" width="22" height="14" rx="3" class="code"/>
+<text x="330" y="1112" class="line">decided in code</text>
+<rect x="560" y="1101" width="22" height="14" rx="3" class="gate"/>
+<text x="590" y="1112" class="line">calibrated decision gate</text>
+<rect x="820" y="1101" width="22" height="14" rx="3" class="ext"/>
+<text x="850" y="1112" class="line">external system</text>
+</svg>
