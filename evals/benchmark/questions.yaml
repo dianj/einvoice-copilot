@@ -27,6 +27,7 @@ questions:
   - {id: vd-18, kind: fact, question: "Can a cleared invoice in Valdoria be modified or cancelled?", expected: [VD-LAW-01]}
   - {id: vd-19, kind: obligation, as_of: 2026-04-01, question: "Can a taxpayer that is not large clear its invoices voluntarily before July 2026?", expected: [VD-AM-03]}
   - {id: vd-20, kind: rule, question: "Which schemeID marks the Clearance ID in the UBL invoice?", expected: [VD-TS-02]}
+  - {id: vd-21, kind: fact, question: "What is the format of a Valdoria Clearance ID?", expected: [VD-TS-02]}
 
   # --- Kestria --------------------------------------------------------------------------------------------------
   - {id: ks-01, kind: fact, question: "From when are structured electronic invoices mandatory in Kestria?", expected: [KS-LAW-01]}
@@ -46,6 +47,7 @@ questions:
   - {id: ks-15, kind: fact, question: "Which date decides the VAT rate of a Kestrian invoice?", expected: [KS-CL-01, KS-TS-01]}
   - {id: ks-16, kind: rule, question: "What do the VAT category codes S, AA and E mean?", expected: [KS-CL-01, KS-TS-01]}
   - {id: ks-17, kind: rule, question: "Is TaxCurrencyCode KSK needed when the document currency is KSK?", expected: [KS-TS-01]}
+  - {id: ks-18, kind: fact, question: "How is the Kestria tax ID structured?", expected: [KS-TS-01]}
 
   # --- Orlavia --------------------------------------------------------------------------------------------------
   - {id: ol-01, kind: obligation, as_of: 2026-03-15, question: "What is the reporting deadline for an Orlavian invoice issued on 15 March 2026?", expected: [OL-AM-12, OL-LAW-01]}
@@ -61,6 +63,7 @@ questions:
   - {id: ol-11, kind: fact, question: "Does ORTS approve invoices before they are issued?", expected: [OL-LAW-01]}
   - {id: ol-12, kind: rule, question: "What does rule OL-03 check?", expected: [OL-TS-01]}
   - {id: ol-13, kind: rule, question: "Where is the ORTS-QR payload placed in the UBL invoice?", expected: [OL-TS-01]}
+  - {id: ol-14, kind: fact, question: "What goes into the QR code of an Orlavia invoice?", expected: [OL-TS-01]}
 
   # --- Common core ----------------------------------------------------------------------------------------------
   - {id: com-01, kind: fact, question: "What rounding tolerance is allowed in invoice arithmetic?", expected: [COM-02]}

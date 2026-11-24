@@ -81,7 +81,7 @@ class Retriever:
         self.index = VectorIndex(index_path, embedder, include_test)
         self.index.sync(chunks)
         self._ids = list(self.chunks)
-        self._bm25 = BM25Okapi([tokens(self.chunks[cid].embed_text) for cid in self._ids])
+        self._bm25 = BM25Okapi([tokens(self.chunks[cid].keyword_text) for cid in self._ids])
 
     @staticmethod
     def allowed(chunk: Chunk, as_of: date, countries: set[str] | None, doc_types: set[str] | None,

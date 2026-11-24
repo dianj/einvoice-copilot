@@ -13,6 +13,11 @@ from copilot.corpus.loader import RULE_ID, Document
 MAX_CHARS = 600
 OVERLAP_CHARS = 100
 OPEN_END = 99991231
+# "VCP technical specification" never says "Valdoria", so a question that names the country missed its passages
+# (E5 eval qa-vd-clearance-format, benchmark vd-21). The keyword index gets the country name in front of every chunk;
+# the embeddings do not: with the name in the embedded text, vector-only hit@3 on version questions fell from 1.00
+# to 0.60 (MiniLM: chunks of one country looked alike).
+COUNTRY_NAMES = {"VD": "Valdoria", "KS": "Kestria", "OL": "Orlavia"}
 
 
 def date_int(day: date | None) -> int:
@@ -46,6 +51,13 @@ class Chunk(BaseModel):
     @property
     def embed_text(self) -> str:
         return f"{self.title}. {self.heading}\n{self.text}"
+
+    @property
+    def keyword_text(self) -> str:
+        """embed_text with the country name in front, for BM25 only (see COUNTRY_NAMES)."""
+        country = COUNTRY_NAMES.get(self.country)
+        prefix = f"{country}: " if country and country.lower() not in self.title.lower() else ""
+        return prefix + self.embed_text
 
     @property
     def content_hash(self) -> str:

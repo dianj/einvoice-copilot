@@ -52,6 +52,27 @@ def test_chunk_hash_changes_with_the_text():
     assert chunk_document(doc_copy)[0].content_hash != before
 
 
+def test_the_keyword_index_names_each_chunks_country_once():
+    # E5: "VCP technical specification" never says "Valdoria"; "What is the format of a Valdoria Clearance ID?"
+    # missed VD-TS-02 §6 (benchmark vd-21). Only the keyword text gets the name; the embedded text stays as it was.
+    chunks = {c.ref: c for c in all_chunks()}
+    spec = chunks["VD-TS-02 §6"]
+    assert spec.keyword_text == "Valdoria: " + spec.embed_text
+    assert spec.embed_text.startswith("VCP technical specification v2.1. ")
+    assert chunks["KS-TS-01 §3"].keyword_text.startswith("Kestria: KesNet invoice profile v3. ")
+    assert chunks["VD-LAW-01 §1"].keyword_text.startswith("Valdoria e-Invoicing Act")   # already in the title
+    assert chunks["COM-03 §2"].keyword_text.startswith("Country comparison overview")    # common: no country
+
+
+def test_a_question_naming_the_country_finds_the_platform_spec():
+    kb = Retriever(all_chunks(), FakeEmbedder(), index_path=None)
+    scores = dict(zip(kb._ids, kb._bm25.get_scores(tokens("What is the format of a Valdoria Clearance ID?")),
+                      strict=True))
+    in_force = [cid for cid in scores if kb.allowed(kb.chunks[cid], date(2026, 5, 15), {"VD"}, None, False)]
+    best = max(in_force, key=scores.get)
+    assert kb.chunks[best].ref == "VD-TS-02 §6"        # without the country name: VD-LAW-01 §3 (a definition)
+
+
 def test_tokens_keep_rule_ids_whole_and_split():
     assert tokens("What does rule VD-09 require for 381?") == ["rule", "vd-09", "vd", "09", "require", "381"]
 

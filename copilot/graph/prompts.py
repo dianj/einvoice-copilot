@@ -4,9 +4,10 @@ The model only ever fills a schema. What the fields mean is decided in code: the
 dates are parsed by `dateparser`, citations must match retrieved passages, and explanations must cover exactly the
 rule engine's findings.
 """
+from copilot.kb.chunker import COUNTRY_NAMES  # noqa: F401  (one list of names: prompts and chunk headers)
+
 PROMPT_VERSION = "e5-2026-11-24.1"
 
-COUNTRY_NAMES = {"VD": "Valdoria", "KS": "Kestria", "OL": "Orlavia"}
 LANGUAGE_NAMES = {"en": "English", "bg": "Bulgarian"}
 
 SCOPE = """You are the E-Invoice Compliance Copilot for an e-invoicing localization team. You know the documents of three countries and a common invoice model:
