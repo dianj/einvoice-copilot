@@ -14,6 +14,7 @@ from copilot.graph.texts import text
 from copilot.kb.retriever import retriever
 from copilot.llm import complete_json
 
+VAGUE_WORDS = 4   # a message this short gets the answer plus the other things the assistant can do
 BRACKET = re.compile(r"\s?\[([^\[\]]{3,120})\]")
 # Any document-like reference, not only known prefixes: an invented "XX-LAW-99 §1" must be caught, not ignored.
 REF = re.compile(r"\b([A-Z]{2,5}-(?:[A-Z]+-)?\d{2})\s*§\s*(\d+)")
@@ -71,4 +72,6 @@ async def answer_grounded(state) -> dict:
     if not valid:
         notes.append("The model's answer cited no retrieved passage, so it was not shown.")
         return reply(text(lang, "ungrounded"), citations=[], notes=notes)
+    if len(state["user_input"].split()) <= VAGUE_WORDS:   # "What about Valdoria?": also say what else is possible
+        cleaned = f"{cleaned}\n\n{text(lang, 'more_options')}"
     return reply(cleaned, citations=valid, notes=notes)

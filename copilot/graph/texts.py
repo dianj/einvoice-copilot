@@ -11,6 +11,9 @@ TEXTS = {
         "clarify_attachment": "Please attach the UBL invoice you want me to check (Attach invoice), then ask again.",
         "clarify_countries": "Which countries should I compare? Name at least two of Valdoria, Kestria and Orlavia.",
         "attachment_missing": "I could not find the attached invoice any more. Please attach it again.",
+        "no_skip_validation": "The check cannot be skipped: the result below is the rule engine's.",
+        "more_options": "I can also check an attached invoice, compare the countries or draft a requirement: tell me "
+                        "which.",
         "not_in_documents": "This is not in the documents I have for {dates}. A national law, technical "
                             "specification or FAQ of the country would be the place to look.",
         "ungrounded": "I found related passages but could not give an answer that rests on them, so I will not "
@@ -70,6 +73,9 @@ TEXTS = {
         "clarify_attachment": "Моля, прикачете UBL фактурата, която да проверя (Attach invoice), и попитайте отново.",
         "clarify_countries": "Кои държави да сравня? Посочете поне две от Валдория, Кестрия и Орлавия.",
         "attachment_missing": "Не намирам прикачената фактура. Моля, прикачете я отново.",
+        "no_skip_validation": "Проверката не може да се пропусне: по-долу е резултатът от машината за правила.",
+        "more_options": "Мога също да проверя прикачена фактура, да сравня страните или да изготвя изискване: "
+                        "кажете кое.",
         "not_in_documents": "Това не е в документите, с които разполагам за {dates}. Би трябвало да е в закон, "
                             "техническа спецификация или ЧЗВ на съответната държава.",
         "ungrounded": "Намерих свързани откъси, но не успях да дам отговор, който да се опира на тях, затова няма "
