@@ -12,12 +12,12 @@ from datetime import date
 from typing import Literal
 
 import httpx
-from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi import FastAPI, HTTPException, Path, Query, Request
 from fastapi.responses import FileResponse, Response, StreamingResponse
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from pydantic import BaseModel, Field
 
-from copilot import attachments, config
+from copilot import attachments, config, observability
 from copilot.corpus.loader import corpus
 from copilot.graph.build import build_graph
 from copilot.graph.run import pending_approval, stream_resume, stream_turn
@@ -203,6 +203,29 @@ async def get_thread(thread_id: str, request: Request):
     return {"thread_id": thread_id, "messages": state.values.get("messages", []),
             "requirement_draft": state.values.get("requirement_draft"), "ticket": state.values.get("ticket"),
             "pending_approval": pending_approval(state)}
+
+
+# --- observability ----------------------------------------------------------------------------------------------
+
+@app.get("/api/runs/{run_id}")
+async def get_run(run_id: str = Path(pattern=r"^[0-9a-f]{32}$")):
+    """A stored run: status, intent, timing, the final result and its spans (ARCHITECTURE.md §11)."""
+    run = await observability.get_run(run_id)
+    if run is None:
+        raise HTTPException(404, f"Unknown run '{run_id}'.")
+    return run
+
+
+@app.get("/api/runs/{run_id}/trace")
+async def get_trace(run_id: str = Path(pattern=r"^[0-9a-f]{32}$")):
+    """The graph path of a run, node by node, with timings, tokens and the documents each node used."""
+    run = await get_run(run_id)
+    return {"run_id": run_id, "status": run["status"], "ms": run["ms"], "model": run["model"], "spans": run["spans"]}
+
+
+@app.get("/api/metrics")
+async def get_metrics():
+    return await observability.metrics()
 
 
 # --- tickets ----------------------------------------------------------------------------------------------------

@@ -190,3 +190,24 @@ def test_reject_creates_no_ticket(page, app_url, fake_lm):
     page.click("#reject")
     expect(page.locator(".msg.assistant").last).to_contain_text("Not created")
     assert page.get_by_test_id("ticket-number").count() == 0
+
+
+def test_trace_of_an_answer_and_the_metrics_tab(page, app_url, fake_lm):
+    fake_lm.script("route", route("question", ["VD"], ["30 June 2026", "1 July 2026"]))
+    fake_lm.script("grounded_answer", {"in_documents": True, "answer": "On 30 June 2026: no [VD-AM-03 §2]."})
+    page.goto(app_url)
+    page.fill("#message", "Is a small Valdorian company obliged to use VCP on 30 June 2026? And on 1 July?")
+    page.click("#send")
+    answer = page.locator(".msg.assistant").last
+    expect(answer).to_contain_text("On 30 June 2026: no")
+    answer.get_by_test_id("trace").click()
+    spans = answer.locator(".trace .span .mono:first-child")
+    expect(spans).to_have_text(["route", "extract_date", "retrieve", "answer_grounded"])
+    expect(answer.locator(".trace")).to_contain_text("1 LLM call, 100 → 20 tokens")
+    expect(answer.locator(".trace")).to_contain_text("documents: VD-")
+    answer.get_by_test_id("trace").click()
+    expect(answer.locator(".trace")).to_have_count(0)
+    page.click("nav >> text=Metrics")
+    expect(page.locator("#metrics-body .tile").first).to_contain_text("runs")
+    expect(page.locator("#metrics-body svg.bars")).to_be_visible()
+    expect(page.locator("#metrics-body")).to_contain_text("question")

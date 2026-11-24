@@ -13,7 +13,7 @@ from dataclasses import dataclass
 
 from openai import AsyncOpenAI
 
-from copilot import config
+from copilot import config, observability
 
 log = logging.getLogger("copilot.llm")
 
@@ -79,5 +79,6 @@ async def complete_json(system: str, user: str, schema: dict, name: str, max_tok
     usage = response.usage
     log.info("llm %s: %d ms, %s -> %s tokens", name, ms, usage.prompt_tokens if usage else "?",
              usage.completion_tokens if usage else "?")
+    observability.add_tokens(usage.prompt_tokens if usage else None, usage.completion_tokens if usage else None)
     return LLMResult(data=parse_json(raw), raw=raw, ms=ms, tokens_in=usage.prompt_tokens if usage else None,
                      tokens_out=usage.completion_tokens if usage else None)

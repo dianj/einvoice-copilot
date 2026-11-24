@@ -6,12 +6,13 @@ the draft and the interrupt id to answer with), ticket (created or found), final
 error (the run failed; the checkpoint keeps the last completed step, so the thread stays usable).
 """
 import logging
+import time
 from collections.abc import AsyncIterator
 
 from langgraph.types import Command
 
 from copilot import config as settings
-from copilot import decisions
+from copilot import decisions, observability
 from copilot.decide import Action
 from copilot.graph.prompts import PROMPT_VERSION
 from copilot.graph.texts import text
@@ -80,12 +81,16 @@ async def stream_resume(graph, thread_id: str, decision: dict) -> AsyncIterator[
     again by the approval node). Anything else counts as a rejection (an empty resume value would not resume)."""
     if not isinstance(decision, dict) or not decision:
         decision = {"approved": False}
-    async for event in _stream(graph, thread_id, Command(resume=decision)):
+    async for event in _stream(graph, thread_id, Command(resume=decision), kind="approval"):
         yield event
 
 
-async def _stream(graph, thread_id: str, graph_input) -> AsyncIterator[dict]:
+async def _stream(graph, thread_id: str, graph_input, kind: str = "message") -> AsyncIterator[dict]:
+    """Run the graph once as a stored run: its id first (for the trace), then the events, then the final result."""
     config = {"configurable": {"thread_id": thread_id}}
+    started = time.perf_counter()
+    run_id = await observability.start_run(thread_id, kind, PROMPT_VERSION)
+    yield {"event": "run", "run_id": run_id}
     try:
         async for mode, chunk in graph.astream(graph_input, config, stream_mode=["updates", "custom"]):
             if mode == "custom":
@@ -107,21 +112,27 @@ async def _stream(graph, thread_id: str, graph_input) -> AsyncIterator[dict]:
                     yield {"event": "ticket", "ticket": update["ticket"]}
     except LLMError as exc:
         log.warning("thread %s: %s", thread_id, exc)
+        await observability.finish_run(run_id, started, "failed")
         yield {"event": "error", "message": "The language model is not available right now "
                                             f"({exc}). Please try again in a moment."}
         return
     except Exception:
         log.exception("thread %s: the run failed", thread_id)
+        await observability.finish_run(run_id, started, "failed")
         yield {"event": "error", "message": "Something went wrong while answering. Please try again."}
         return
     snapshot = await graph.aget_state(config)
     state = snapshot.values
     waiting = pending_approval(snapshot)
     if waiting:
+        final = {"event": "final", "thread_id": thread_id, "run_id": run_id, "prompt_version": PROMPT_VERSION,
+                 "awaiting_approval": True, **{k: state.get(k) for k in FINAL_FIELDS},
+                 "answer": text(state.get("language", "en"), "approval_needed"), "citations": []}
+        await observability.finish_run(run_id, started, "waiting", final, state)
         yield {"event": "approval", **waiting}
-        yield {"event": "final", "thread_id": thread_id, "prompt_version": PROMPT_VERSION, "awaiting_approval": True,
-               **{k: state.get(k) for k in FINAL_FIELDS},
-               "answer": text(state.get("language", "en"), "approval_needed"), "citations": []}
+        yield final
         return
-    yield {"event": "final", "thread_id": thread_id, "prompt_version": PROMPT_VERSION, "awaiting_approval": False,
-           **{k: state.get(k) for k in FINAL_FIELDS}}
+    final = {"event": "final", "thread_id": thread_id, "run_id": run_id, "prompt_version": PROMPT_VERSION,
+             "awaiting_approval": False, **{k: state.get(k) for k in FINAL_FIELDS}}
+    await observability.finish_run(run_id, started, "ok", final, state)
+    yield final

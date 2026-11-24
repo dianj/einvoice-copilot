@@ -34,8 +34,9 @@ def test_chat_streams_progress_and_the_final_answer(client, fake_lm):
     fake_lm.script("route", route("out_of_scope"))
     events = events_of(client.post("/api/chat", json={"message": "Tell me a joke"}))
     assert events[0]["event"] == "thread" and len(events[0]["thread_id"]) == 32
-    assert [e["event"] for e in events[1:]] == ["node_started", "node_finished", "node_started", "node_finished",
-                                                 "final"]
+    assert [e["event"] for e in events[1:]] == ["run", "node_started", "node_finished", "node_started",
+                                                 "node_finished", "final"]
+    assert events[-1]["run_id"] == events[1]["run_id"]
     assert events[-1]["intent"] == "out_of_scope" and events[-1]["thread_id"] == events[0]["thread_id"]
     thread = client.get(f"/api/threads/{events[0]['thread_id']}").json()
     assert [m["role"] for m in thread["messages"]] == ["user", "assistant"]

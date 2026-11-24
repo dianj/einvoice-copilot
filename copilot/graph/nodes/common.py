@@ -7,21 +7,25 @@ import time
 from langgraph.config import get_stream_writer
 from langgraph.errors import GraphInterrupt
 
+from copilot import observability
+
 log = logging.getLogger("copilot.graph")
 CYRILLIC = re.compile(r"[А-Яа-яЁё]")
 LATIN = re.compile(r"[A-Za-z]")
 
 
 def traced(name: str):
-    """Report `node_started` / `node_finished` (with milliseconds) on the graph's custom stream. These events drive
-    the UI's progress line; E5 stores them as spans."""
+    """Report `node_started` / `node_finished` (with milliseconds) on the graph's custom stream, for the UI's
+    progress line, and store the node as a span of the current run (tokens, documents, status)."""
     def decorate(fn):
         @functools.wraps(fn)
         async def node(state):
             write = get_stream_writer()
             write({"event": "node_started", "node": name})
+            span = observability.begin_span()
+            started_at = observability._now()
             start = time.perf_counter()
-            status = "error"
+            status, result, error = "error", None, None
             try:
                 result = await fn(state)
                 status = "ok"
@@ -29,10 +33,14 @@ def traced(name: str):
             except GraphInterrupt:
                 status = "waiting"  # paused for a person (the approval interrupt); resumes in a later request
                 raise
+            except Exception as exc:
+                error = type(exc).__name__
+                raise
             finally:
                 ms = int((time.perf_counter() - start) * 1000)
                 write({"event": "node_finished", "node": name, "ms": ms, "status": status})
                 log.info("node %s %s in %d ms", name, status, ms)
+                await observability.record_span(name, started_at, ms, status, span, result, error)
         return node
     return decorate
 

@@ -94,6 +94,23 @@
     #tickets-table tr.pick { cursor: pointer; }
     #tickets-table tr.pick:hover td { background: var(--panel-2); }
     .tickets { display: grid; grid-template-columns: 1fr minmax(280px, 420px); gap: 20px; align-items: start; }
+    .trace { margin-top: 10px; border-top: 1px solid var(--line); padding-top: 8px; font-size: 12px; }
+    .trace .span { display: grid; grid-template-columns: 140px 1fr 70px; gap: 8px; align-items: center; padding: 2px 0; }
+    .trace .bar { height: 10px; border-radius: 3px; background: var(--accent); min-width: 2px; }
+    .trace .bar.waiting { background: var(--warn); }
+    .trace .bar.error { background: var(--bad); }
+    .trace .detail { grid-column: 2 / 4; color: var(--muted); }
+    .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px; }
+    .tile { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; background: var(--panel); }
+    .tile .value { font-size: 24px; font-weight: 600; font-variant-numeric: tabular-nums; }
+    .tile .label { color: var(--muted); font-size: 12px; margin-top: 2px; }
+    .metrics-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: 8px 32px; }
+    .metrics-grid h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 12px 0 8px; }
+    svg.bars { max-width: 100%; height: auto; }
+    svg.bars text { fill: var(--text); font: 12px "Segoe UI", system-ui, sans-serif; }
+    svg.bars text.dim { fill: var(--muted); }
+    svg.bars .p50 { fill: var(--accent); }
+    svg.bars .p95 { fill: var(--accent); opacity: .35; }
     @media (max-width: 760px) { .app, .chat { grid-template-columns: 1fr; } aside { border-right: 0; border-bottom: 1px solid var(--line); } }
 </style>
 </head>
@@ -108,6 +125,7 @@
         <button role="tab" aria-selected="false" type="button" data-view="validate">Validate</button>
         <button role="tab" aria-selected="false" type="button" data-view="compare">Compare</button>
         <button role="tab" aria-selected="false" type="button" data-view="tickets">Tickets</button>
+        <button role="tab" aria-selected="false" type="button" data-view="metrics">Metrics</button>
     </nav>
 </header>
 
@@ -170,6 +188,15 @@
         <div id="tickets-list"><p class="empty">Loading…</p></div>
         <div id="ticket-detail"><p class="empty">Click a ticket to see it.</p></div>
     </div>
+</div>
+
+<div class="single view" id="view-metrics" hidden>
+    <div class="row compare-form">
+        <h2 style="margin:0">Runs of this app</h2>
+        <button class="secondary" id="metrics-refresh" type="button">Refresh</button>
+        <span class="sub">Every request is a run; every graph node a span with its time, tokens and documents.</span>
+    </div>
+    <div id="metrics-body"><p class="empty">Loading…</p></div>
 </div>
 
 <div class="app view" id="view-validate" hidden>
@@ -340,12 +367,14 @@ for (const tab of document.querySelectorAll("nav [role=tab]")) {
         showView(tab.dataset.view);
         history.replaceState(null, "", `#${tab.dataset.view}`);
         if (tab.dataset.view === "tickets") loadTickets();
+        if (tab.dataset.view === "metrics") loadMetrics();
     });
 }
 function viewFromHash() {
     const name = location.hash.slice(1);
-    showView(["validate", "compare", "tickets"].includes(name) ? name : "assistant");
+    showView(["validate", "compare", "tickets", "metrics"].includes(name) ? name : "assistant");
     if (name === "tickets") loadTickets();
+    if (name === "metrics") loadMetrics();
 }
 window.addEventListener("hashchange", viewFromHash);
 viewFromHash();
@@ -479,6 +508,7 @@ function renderFinal(event, extra) {
             `as of ${event.dates.join(", ")} (${DATE_SOURCES[event.date_source] ?? "?"})`));
     }
     for (const ref of event.citations ?? []) meta.append(chip(ref));
+    if (event.run_id) meta.append(traceButton(event.run_id, node));
     node.append(meta);
     if (event.notes?.length) node.append(el("ul", { class: "notes" }, ...event.notes.map((n) => el("li", {}, n))));
 }
@@ -668,6 +698,96 @@ fetch("/api/health").then((r) => r.json()).then((h) => {
     $("compare-date").value = h.today;
     $("tickets-backend").textContent = h.tickets.backend === "rest" ? "ServiceNow instance" : "local fake ServiceNow (SQLite)";
 });
+
+// --- trace (one run, node by node) and metrics -------------------------------------------------------------------
+const SVG = "http://www.w3.org/2000/svg";
+
+function traceButton(runId, message) {
+    const button = el("button", { class: "chip", type: "button", "data-testid": "trace" }, "Trace");
+    button.addEventListener("click", async () => {
+        const open = message.querySelector(".trace");
+        if (open) { open.remove(); return; }
+        const response = await fetch(`/api/runs/${encodeURIComponent(runId)}/trace`);
+        const trace = await response.json();
+        if (!response.ok) { message.append(el("p", { class: "error-box trace" }, trace.detail ?? "No trace.")); return; }
+        const longest = Math.max(1, ...trace.spans.map((s) => s.ms));
+        const panel = el("div", { class: "trace" },
+            el("div", { class: "sub" }, `${trace.spans.length} nodes · ${trace.ms ?? "?"} ms · ${trace.model}`));
+        for (const span of trace.spans) {
+            const bar = el("div", { class: `bar ${span.status}` });
+            bar.style.width = `${Math.max(1, (span.ms / longest) * 100)}%`;
+            const calls = span.llm_calls === 1 ? "1 LLM call" : `${span.llm_calls} LLM calls`;
+            const details = [span.status !== "ok" ? span.status : null,
+                span.llm_calls ? `${calls}, ${span.tokens_in} → ${span.tokens_out} tokens` : null,
+                span.doc_ids.length ? `documents: ${span.doc_ids.join(", ")}` : null].filter(Boolean);
+            panel.append(el("div", { class: "span" }, el("span", { class: "mono" }, span.node), el("div", {}, bar),
+                el("span", { class: "mono" }, `${span.ms} ms`),
+                ...(details.length ? [el("div", { class: "detail" }, details.join(" · "))] : [])));
+        }
+        message.append(panel);
+    });
+    return button;
+}
+
+function svgNode(tag, attrs, text) {
+    const node = document.createElementNS(SVG, tag);
+    for (const [key, value] of Object.entries(attrs)) node.setAttribute(key, value);
+    if (text !== undefined) node.textContent = text;
+    return node;
+}
+
+// Rows of [label, p50, p95]: the median bar drawn over the p95 bar.
+function latencyBars(rows) {
+    const rowH = 26, labelW = 150, width = 480, barW = width - labelW - 110;
+    const max = Math.max(1, ...rows.map((r) => r[2]));
+    const svg = svgNode("svg", { class: "bars", viewBox: `0 0 ${width} ${rows.length * rowH}`, width,
+                                 role: "img", "aria-label": "Latency per node, median and 95th percentile" });
+    rows.forEach(([label, p50, p95], i) => {
+        const y = i * rowH;
+        svg.append(svgNode("text", { x: 0, y: y + 17, class: "dim" }, label),
+            svgNode("rect", { x: labelW, y: y + 5, width: Math.max(p95 / max * barW, 1), height: 14, rx: 3, class: "p95" }),
+            svgNode("rect", { x: labelW, y: y + 5, width: Math.max(p50 / max * barW, 1), height: 14, rx: 3, class: "p50" }),
+            svgNode("text", { x: labelW + barW + 8, y: y + 17 }, `${(p50 / 1000).toFixed(1)} / ${(p95 / 1000).toFixed(1)} s`));
+    });
+    return svg;
+}
+
+function countTable(counts, heading) {
+    const entries = Object.entries(counts ?? {});
+    if (!entries.length) return el("p", { class: "empty" }, "None yet.");
+    return el("table", {}, el("tr", {}, el("th", {}, heading), el("th", {}, "Count")),
+        ...entries.map(([key, n]) => el("tr", {}, el("td", { class: "mono" }, key), el("td", {}, String(n)))));
+}
+
+function tile(value, label) {
+    return el("div", { class: "tile" }, el("div", { class: "value" }, value), el("div", { class: "label" }, label));
+}
+
+function seconds(ms) { return ms === null ? "–" : `${(ms / 1000).toFixed(1)} s`; }
+
+async function loadMetrics() {
+    const body = $("metrics-body");
+    const response = await fetch("/api/metrics");
+    const m = await response.json();
+    if (!response.ok) { body.replaceChildren(el("p", { class: "error-box" }, m.detail ?? "Metrics are not available.")); return; }
+    const pct = (v) => (v === null ? "–" : `${Math.round(v * 100)}%`);
+    const e2e = m.latency_ms.end_to_end;
+    const nodes = Object.entries(m.latency_ms.nodes).map(([node, v]) => [node, v.p50, v.p95]);
+    body.replaceChildren(
+        el("div", { class: "tiles" },
+            tile(String(m.runs), "runs"),
+            tile(seconds(e2e.p50), `median run (p95 ${seconds(e2e.p95)})`),
+            tile(pct(m.abstention_rate), "questions answered \"not in the documents\""),
+            tile(String(m.tickets_created), `tickets (${m.approvals.approved} approved, ${m.approvals.rejected} rejected)`),
+            tile(String(m.failed_runs), `failed runs (${m.llm_errors} node errors)`),
+            tile(`${Math.round(m.tokens.in / 1000)}k / ${Math.round(m.tokens.out / 1000)}k`, "tokens in / out")),
+        el("div", { class: "metrics-grid" },
+            el("div", {}, el("h2", {}, "Latency per node (median / p95)"),
+                nodes.length ? latencyBars(nodes) : el("p", { class: "empty" }, "No runs yet.")),
+            el("div", {}, el("h2", {}, "Runs per intent"), countTable(m.runs_per_intent, "Intent"),
+                el("h2", {}, "Findings per rule (validations)"), countTable(m.findings_per_rule, "Rule"))));
+}
+$("metrics-refresh").addEventListener("click", loadMetrics);
 
 // --- tickets tab -------------------------------------------------------------------------------------------------
 async function loadTickets() {
