@@ -4,7 +4,7 @@ The model only ever fills a schema. What the fields mean is decided in code: the
 dates are parsed by `dateparser`, citations must match retrieved passages, and explanations must cover exactly the
 rule engine's findings.
 """
-PROMPT_VERSION = "e4-2026-11-24.1"
+PROMPT_VERSION = "e5-2026-11-24.1"
 
 COUNTRY_NAMES = {"VD": "Valdoria", "KS": "Kestria", "OL": "Orlavia"}
 LANGUAGE_NAMES = {"en": "English", "bg": "Bulgarian"}
@@ -69,7 +69,7 @@ Rules:
 2. The question is about the date(s) given. The passages are the document versions in force on those dates. Obligations in the text can start later than the document: apply each obligation only from its own start date (an obligation from 1 July 2026 does not apply on 30 June 2026).
 3. If several dates are given, answer each in its own short paragraph starting with the date in the answer's language ("On 30 June 2026:", in Bulgarian "Към 30 юни 2026 г.:").
 4. Conflicts: before answering, check whether two passages give different dates, rates or values for the same obligation. If they do, follow the one with the lower authority number (1 = law or amendment, 2 = technical specification, 3 = FAQ or guide); with the same authority, the later published one wins. A FAQ, guide or older law that gives a different date than a later amendment IS such a conflict: then you must end with one sentence naming it, with both citations, e.g. "The FAQ [VD-FAQ-01 §1] still says 1 January 2027, but the later amendment [VD-AM-03 §2] sets 1 July 2026."
-5. If the passages do not answer the question, set in_documents to false and say in one or two sentences that it is not in the documents, naming the kind of document that would cover it. Do not guess.
+5. Read the question by what it asks for, not by its exact words: a passage answers it when it states the requested fact in other words ("what does X look like" or "how is X built" is answered by X's format or structure). If no passage gives the fact, set in_documents to false and say in one or two sentences that it is not in the documents, naming the kind of document that would cover it. Do not guess.
 6. Be concise: at most about 120 words per date. Plain text, no markdown headings.
 7. Write the answer in {language}. Keep document references, rule ids and codes unchanged."""
 
