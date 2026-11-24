@@ -29,6 +29,7 @@ os.environ["CHECKPOINT_DB"] = os.path.join(_DATA, "checkpoints.sqlite")
 os.environ["ATTACHMENTS_DIR"] = os.path.join(_DATA, "attachments")
 os.environ["APP_DB"] = os.path.join(_DATA, "app.sqlite")           # FakeServiceNow tickets
 os.environ["SN_BACKEND"] = "fake"
+os.environ["DECISION_GATE"] = "0"   # the approval gate has its own tests (tests/test_approval_gate.py)
 
 
 @pytest.fixture(scope="session")

@@ -6,10 +6,15 @@ three countries is never refused as out of scope (it is answered from the docume
 validation without an invoice and a comparison of fewer than two countries become clarifying questions.
 A ticket can only be asked for when the thread has a checked requirement draft; otherwise the request becomes a
 draft (if it names a country) or a clarifying question. The "Create ticket" button skips the model altogether.
+
+Route check (copilot/decisions.py): in parallel, the same model answers the intent as one letter, read as calibrated
+probabilities. When the code rules left the model's intent unchanged and that answer disagrees or is not sure, the
+assistant asks which of the likely intents is meant instead of guessing.
 """
+import asyncio
 import re
 
-from copilot import config
+from copilot import config, decisions
 from copilot.graph import prompts
 from copilot.graph.nodes.common import language, reply, traced
 from copilot.graph.texts import text
@@ -57,22 +62,45 @@ async def route(state) -> dict:
         return {"messages": [{"role": "user", "content": message}], "language": language(message),
                 "intent": "create_ticket", "clarify": "", "countries": [draft["country"]], "date_phrases": [],
                 "search_query": ""}
-    result = await complete_json(prompts.ROUTE_SYSTEM,
-                                 prompts.route_user(message, history, has_attachment, has_draft=bool(draft)),
-                                 prompts.ROUTE_SCHEMA, "route", max_tokens=400)
+    check = None
+    if config.DECISION_GATE:
+        check = asyncio.create_task(decisions.decider().ask(
+            decisions.ROUTE, message, decisions.route_context(history, has_attachment, bool(draft))))
+    try:
+        result = await complete_json(prompts.ROUTE_SYSTEM,
+                                     prompts.route_user(message, history, has_attachment, has_draft=bool(draft)),
+                                     prompts.ROUTE_SCHEMA, "route", max_tokens=400)
+    except Exception:
+        if check:
+            check.cancel()
+        raise
     data = result.data
+    raw = data.get("intent", "out_of_scope")
     countries = sorted(set(data.get("countries") or []) & set(prompts.COUNTRY_NAMES) | detect_countries(message))
-    intent, clarify = apply_code_rules(data.get("intent", "out_of_scope"), countries, message, has_attachment,
-                                       has_draft=bool(draft))
+    intent, clarify = apply_code_rules(raw, countries, message, has_attachment, has_draft=bool(draft))
+    options, notes = [], []
+    if check is not None:
+        gate = await check                    # never raises: no usable answer keeps the model's intent
+        reason = decisions.route_check(intent, gate) if intent == raw else None   # code rules stand
+        if reason:
+            ranked = sorted(gate.probs, key=gate.probs.get, reverse=True)
+            options = list(dict.fromkeys([intent, *ranked]))[:2]
+            notes.append(f"Asked instead of guessing ({reason}: the route check gave "
+                         f"{gate.label} {gate.p:.2f}, the router {intent}).")
+            intent, clarify = "clarify", "clarify_intent"
     return {"messages": [{"role": "user", "content": message}], "language": language(message), "intent": intent,
-            "clarify": clarify, "countries": countries,
+            "clarify": clarify, "clarify_options": options, "notes": notes, "countries": countries,
             "date_phrases": [str(p) for p in data.get("date_phrases") or []][:3],
             "search_query": (data.get("search_query") or "").strip() or message}
 
 
 @traced("clarify")
 async def clarify(state) -> dict:
-    return reply(text(state["language"], state["clarify"]))
+    lang = state["language"]
+    if state["clarify"] == "clarify_intent":
+        options = [text(lang, f"intent_{o}") for o in state.get("clarify_options") or []]
+        return reply(text(lang, "clarify_intent", options=text(lang, "or").join(options)))
+    return reply(text(lang, state["clarify"]))
 
 
 @traced("out_of_scope")

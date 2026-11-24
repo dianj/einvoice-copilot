@@ -1,0 +1,20 @@
+{
+  "question_id": "einvoice.approve_ticket",
+  "model": "gemma-4-26b-a4b-it",
+  "prompt_hash": "9c952d06c491",
+  "temperature": 5.8057,
+  "n_cases": 26,
+  "fitted_at": "2026-11-24T00:03:06.371239+00:00",
+  "metrics_before": {
+    "n": 26,
+    "accuracy": 0.9615,
+    "ece": 0.0384,
+    "brier": 0.0769
+  },
+  "metrics_after": {
+    "n": 26,
+    "accuracy": 0.9615,
+    "ece": 0.0258,
+    "brier": 0.0859
+  }
+}

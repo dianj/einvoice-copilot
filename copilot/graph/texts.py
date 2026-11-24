@@ -49,6 +49,16 @@ TEXTS = {
         "warn_unverified_date": "The effective date {value} does not appear in the cited passages: check it "
                                 "before approving.",
         "warn_no_date": "The passages give no effective date: add one before approving if it is known.",
+        "clarify_intent": "Just to be sure: do you want me to {options}?",
+        "or": ", or ",
+        "intent_question": "answer a question about the rules",
+        "intent_validate": "check the attached invoice",
+        "intent_compare": "compare the countries",
+        "intent_draft_requirement": "draft a requirement",
+        "intent_create_ticket": "create the ticket for the draft",
+        "intent_out_of_scope": "help with something outside these documents",
+        "approval_unclear": "I did not take that as a clear approval, so nothing was created. Use Approve or Reject "
+                            "on the card, or answer yes or no.",
     },
     "bg": {
         "capabilities": ("Мога да отговарям на въпроси за правилата за електронни фактури във Валдория, Кестрия и "
@@ -97,6 +107,16 @@ TEXTS = {
         "warn_bad_date": "Датата на влизане в сила \"{value}\" не е дата: проверете я, преди да одобрите.",
         "warn_unverified_date": "Датата {value} не се среща в цитираните откъси: проверете я, преди да одобрите.",
         "warn_no_date": "Откъсите не посочват дата на влизане в сила: добавете я, преди да одобрите, ако е известна.",
+        "clarify_intent": "За да съм сигурен: искате ли да {options}?",
+        "or": ", или да ",
+        "intent_question": "отговоря на въпрос за правилата",
+        "intent_validate": "проверя прикачената фактура",
+        "intent_compare": "сравня държавите",
+        "intent_draft_requirement": "изготвя изискване",
+        "intent_create_ticket": "създам ticket за черновата",
+        "intent_out_of_scope": "помогна с нещо извън тези документи",
+        "approval_unclear": "Не приех това като ясно одобрение, затова нищо не е създадено. Използвайте Approve или "
+                            "Reject на картата или отговорете с да или не.",
     },
 }
 

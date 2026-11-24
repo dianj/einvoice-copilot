@@ -1,0 +1,20 @@
+{
+  "question_id": "einvoice.approve_ticket",
+  "model": "qwen3.8-27b",
+  "prompt_hash": "9c952d06c491",
+  "temperature": 1.0,
+  "n_cases": 26,
+  "fitted_at": "2026-11-24T00:04:49.393570+00:00",
+  "metrics_before": {
+    "n": 26,
+    "accuracy": 1.0,
+    "ece": 0.0023,
+    "brier": 0.0001
+  },
+  "metrics_after": {
+    "n": 26,
+    "accuracy": 1.0,
+    "ece": 0.0023,
+    "brier": 0.0001
+  }
+}

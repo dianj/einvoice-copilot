@@ -10,6 +10,9 @@ from collections.abc import AsyncIterator
 
 from langgraph.types import Command
 
+from copilot import config as settings
+from copilot import decisions
+from copilot.decide import Action
 from copilot.graph.prompts import PROMPT_VERSION
 from copilot.graph.texts import text
 from copilot.llm import LLMError
@@ -17,7 +20,8 @@ from copilot.llm import LLMError
 log = logging.getLogger("copilot.graph")
 
 # Fields of one turn. Every new message resets them, so nothing from the previous answer leaks into this one.
-TURN_DEFAULTS = {"intent": None, "clarify": "", "countries": [], "date_phrases": [], "search_query": "",
+TURN_DEFAULTS = {"intent": None, "clarify": "", "clarify_options": [], "countries": [], "date_phrases": [],
+                 "search_query": "",
                  "dates": [], "date_source": None, "retrievals": [], "report": None, "rule_passages": [],
                  "explanations": [], "comparison": None, "approval": None, "answer": "", "citations": [],
                  "notes": []}
@@ -46,8 +50,27 @@ def pending_approval(snapshot) -> dict | None:
 
 async def stream_turn(graph, thread_id: str, message: str, attachment_id: str | None = None,
                       params: dict | None = None, action: str | None = None) -> AsyncIterator[dict]:
-    """A new message. If the thread was waiting for an approval, that wait ends here: the draft was not approved
-    (nothing is created), and the new message is handled from the start."""
+    """A new message. If the thread waits for an approval and the message is typed (not a button), the approval gate
+    decides: a calibrated clear "yes, create it" approves the draft as it is; an unclear one keeps the card and asks
+    again; anything else is a new request and the wait ends without a ticket."""
+    if action is None and settings.DECISION_GATE:
+        snapshot = await graph.aget_state({"configurable": {"thread_id": thread_id}})
+        waiting = pending_approval(snapshot)
+        if waiting:
+            verdict, records = await decisions.approval_from_text(message, waiting["draft"])
+            yield {"event": "gate", "question": "einvoice.approve_ticket", "action": verdict.value,
+                   "records": records}
+            lang = snapshot.values.get("language", "en")
+            if verdict == Action.ACT:
+                async for event in stream_resume(graph, thread_id, {"approved": True}):
+                    yield event
+                return
+            if verdict == Action.CONFIRM:
+                yield {"event": "approval", **waiting}
+                yield {"event": "final", "thread_id": thread_id, "prompt_version": PROMPT_VERSION,
+                       "awaiting_approval": True, **{k: snapshot.values.get(k) for k in FINAL_FIELDS},
+                       "answer": text(lang, "approval_unclear"), "citations": [], "notes": []}
+                return
     async for event in _stream(graph, thread_id, turn_input(message, attachment_id, params, action)):
         yield event
 

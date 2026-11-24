@@ -1,0 +1,20 @@
+{
+  "question_id": "einvoice.route",
+  "model": "gemma-4-26b-a4b-it",
+  "prompt_hash": "b265c2d1ee5c",
+  "temperature": 1.0,
+  "n_cases": 30,
+  "fitted_at": "2026-11-24T00:03:56.942810+00:00",
+  "metrics_before": {
+    "n": 30,
+    "accuracy": 1.0,
+    "ece": 0.0,
+    "brier": 0.0
+  },
+  "metrics_after": {
+    "n": 30,
+    "accuracy": 1.0,
+    "ece": 0.0,
+    "brier": 0.0
+  }
+}

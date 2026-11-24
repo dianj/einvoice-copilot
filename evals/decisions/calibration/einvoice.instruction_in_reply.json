@@ -1,0 +1,20 @@
+{
+  "question_id": "einvoice.instruction_in_reply",
+  "model": "gemma-4-26b-a4b-it",
+  "prompt_hash": "ad6c9ea3370a",
+  "temperature": 1.0,
+  "n_cases": 32,
+  "fitted_at": "2026-11-24T00:16:23.494774+00:00",
+  "metrics_before": {
+    "n": 32,
+    "accuracy": 1.0,
+    "ece": 0.0,
+    "brier": 0.0
+  },
+  "metrics_after": {
+    "n": 32,
+    "accuracy": 1.0,
+    "ece": 0.0,
+    "brier": 0.0
+  }
+}

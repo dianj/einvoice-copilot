@@ -1,0 +1,257 @@
+{
+ "model": "qwen3.8-27b",
+ "rows": [
+  {
+   "id": "q-01",
+   "raw": "question",
+   "final": "question",
+   "clarify": "",
+   "ms": 14147
+  },
+  {
+   "id": "q-02",
+   "raw": "question",
+   "final": "question",
+   "clarify": "",
+   "ms": 9220
+  },
+  {
+   "id": "q-03",
+   "raw": "question",
+   "final": "question",
+   "clarify": "",
+   "ms": 8663
+  },
+  {
+   "id": "q-04",
+   "raw": "question",
+   "final": "question",
+   "clarify": "",
+   "ms": 10431
+  },
+  {
+   "id": "q-05",
+   "raw": "question",
+   "final": "question",
+   "clarify": "",
+   "ms": 8835
+  },
+  {
+   "id": "q-06",
+   "raw": "question",
+   "final": "question",
+   "clarify": "",
+   "ms": 8482
+  },
+  {
+   "id": "q-07",
+   "raw": "question",
+   "final": "question",
+   "clarify": "",
+   "ms": 9917
+  },
+  {
+   "id": "v-01",
+   "raw": "validate",
+   "final": "validate",
+   "clarify": "",
+   "ms": 5231
+  },
+  {
+   "id": "v-02",
+   "raw": "validate",
+   "final": "validate",
+   "clarify": "",
+   "ms": 5332
+  },
+  {
+   "id": "v-03",
+   "raw": "validate",
+   "final": "validate",
+   "clarify": "",
+   "ms": 8852
+  },
+  {
+   "id": "v-04",
+   "raw": "validate",
+   "final": "validate",
+   "clarify": "",
+   "ms": 7923
+  },
+  {
+   "id": "c-01",
+   "raw": "compare",
+   "final": "compare",
+   "clarify": "",
+   "ms": 10826
+  },
+  {
+   "id": "c-02",
+   "raw": "compare",
+   "final": "compare",
+   "clarify": "",
+   "ms": 9788
+  },
+  {
+   "id": "c-03",
+   "raw": "compare",
+   "final": "compare",
+   "clarify": "",
+   "ms": 15320
+  },
+  {
+   "id": "d-01",
+   "raw": "draft_requirement",
+   "final": "draft_requirement",
+   "clarify": "",
+   "ms": 8464
+  },
+  {
+   "id": "d-02",
+   "raw": "draft_requirement",
+   "final": "draft_requirement",
+   "clarify": "",
+   "ms": 9037
+  },
+  {
+   "id": "d-03",
+   "raw": "draft_requirement",
+   "final": "draft_requirement",
+   "clarify": "",
+   "ms": 9384
+  },
+  {
+   "id": "d-04",
+   "raw": "draft_requirement",
+   "final": "draft_requirement",
+   "clarify": "",
+   "ms": 8649
+  },
+  {
+   "id": "t-01",
+   "raw": "create_ticket",
+   "final": "create_ticket",
+   "clarify": "",
+   "ms": 9676
+  },
+  {
+   "id": "t-02",
+   "raw": "create_ticket",
+   "final": "create_ticket",
+   "clarify": "",
+   "ms": 9683
+  },
+  {
+   "id": "t-03",
+   "raw": "create_ticket",
+   "final": "create_ticket",
+   "clarify": "",
+   "ms": 9785
+  },
+  {
+   "id": "o-01",
+   "raw": "out_of_scope",
+   "final": "out_of_scope",
+   "clarify": "",
+   "ms": 8316
+  },
+  {
+   "id": "o-02",
+   "raw": "out_of_scope",
+   "final": "out_of_scope",
+   "clarify": "",
+   "ms": 6855
+  },
+  {
+   "id": "o-03",
+   "raw": "out_of_scope",
+   "final": "out_of_scope",
+   "clarify": "",
+   "ms": 6875
+  },
+  {
+   "id": "o-04",
+   "raw": "out_of_scope",
+   "final": "out_of_scope",
+   "clarify": "",
+   "ms": 8652
+  },
+  {
+   "id": "o-05",
+   "raw": "out_of_scope",
+   "final": "out_of_scope",
+   "clarify": "",
+   "ms": 7600
+  },
+  {
+   "id": "u-01",
+   "raw": "out_of_scope",
+   "final": "question",
+   "clarify": "",
+   "ms": 5934
+  },
+  {
+   "id": "u-02",
+   "raw": "out_of_scope",
+   "final": "out_of_scope",
+   "clarify": "",
+   "ms": 7767
+  },
+  {
+   "id": "u-03",
+   "raw": "question",
+   "final": "question",
+   "clarify": "",
+   "ms": 8829
+  },
+  {
+   "id": "u-04",
+   "raw": "out_of_scope",
+   "final": "out_of_scope",
+   "clarify": "",
+   "ms": 5609
+  },
+  {
+   "id": "u-05",
+   "raw": "compare",
+   "final": "compare",
+   "clarify": "",
+   "ms": 10277
+  },
+  {
+   "id": "u-06",
+   "raw": "out_of_scope",
+   "final": "out_of_scope",
+   "clarify": "",
+   "ms": 5597
+  },
+  {
+   "id": "x-01",
+   "raw": "create_ticket",
+   "final": "create_ticket",
+   "clarify": "",
+   "ms": 9674
+  },
+  {
+   "id": "x-02",
+   "raw": "validate",
+   "final": "validate",
+   "clarify": "",
+   "ms": 8135
+  },
+  {
+   "id": "x-03",
+   "raw": "question",
+   "final": "question",
+   "clarify": "",
+   "ms": 12750
+  },
+  {
+   "id": "x-04",
+   "raw": "draft_requirement",
+   "final": "draft_requirement",
+   "clarify": "",
+   "ms": 13311
+  }
+ ]
+}

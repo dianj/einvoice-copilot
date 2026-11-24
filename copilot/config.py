@@ -35,6 +35,11 @@ SN_PASSWORD = os.environ.get("SN_PASSWORD", "")
 SN_TABLE = os.environ.get("SN_TABLE", "u_localization_requirement")
 SN_TIMEOUT_SECONDS = float(os.environ.get("SN_TIMEOUT_SECONDS", "15"))
 
+# --- Approval gate (docs/DECISIONS.md): a typed approval counts only if a calibrated check says it clearly is one ---
+DECISION_GATE = os.environ.get("DECISION_GATE", "1") == "1"
+CALIBRATION_DIR = BASE_DIR / os.environ.get("CALIBRATION_DIR", "evals/decisions/calibration")
+DECISION_TIMEOUT_SECONDS = float(os.environ.get("DECISION_TIMEOUT_SECONDS", "30"))
+
 # --- Corpus ---
 # 1 = also load corpus/test-only (a poisoned document for injection evals). Never in the demo.
 CORPUS_INCLUDE_TEST = os.environ.get("CORPUS_INCLUDE_TEST", "0") == "1"

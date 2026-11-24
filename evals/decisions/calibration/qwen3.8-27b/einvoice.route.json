@@ -1,0 +1,20 @@
+{
+  "question_id": "einvoice.route",
+  "model": "qwen3.8-27b",
+  "prompt_hash": "b265c2d1ee5c",
+  "temperature": 1.0,
+  "n_cases": 30,
+  "fitted_at": "2026-11-24T00:06:08.817517+00:00",
+  "metrics_before": {
+    "n": 30,
+    "accuracy": 1.0,
+    "ece": 0.0121,
+    "brier": 0.0003
+  },
+  "metrics_after": {
+    "n": 30,
+    "accuracy": 1.0,
+    "ece": 0.0121,
+    "brier": 0.0003
+  }
+}

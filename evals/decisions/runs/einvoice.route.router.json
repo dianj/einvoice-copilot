@@ -1,0 +1,257 @@
+{
+ "model": "gemma-4-26b-a4b-it",
+ "rows": [
+  {
+   "id": "q-01",
+   "raw": "question",
+   "final": "question",
+   "clarify": "",
+   "ms": 4923
+  },
+  {
+   "id": "q-02",
+   "raw": "question",
+   "final": "question",
+   "clarify": "",
+   "ms": 3063
+  },
+  {
+   "id": "q-03",
+   "raw": "question",
+   "final": "question",
+   "clarify": "",
+   "ms": 2787
+  },
+  {
+   "id": "q-04",
+   "raw": "question",
+   "final": "question",
+   "clarify": "",
+   "ms": 3368
+  },
+  {
+   "id": "q-05",
+   "raw": "question",
+   "final": "question",
+   "clarify": "",
+   "ms": 2902
+  },
+  {
+   "id": "q-06",
+   "raw": "question",
+   "final": "question",
+   "clarify": "",
+   "ms": 2688
+  },
+  {
+   "id": "q-07",
+   "raw": "question",
+   "final": "question",
+   "clarify": "",
+   "ms": 2932
+  },
+  {
+   "id": "v-01",
+   "raw": "validate",
+   "final": "validate",
+   "clarify": "",
+   "ms": 2423
+  },
+  {
+   "id": "v-02",
+   "raw": "validate",
+   "final": "validate",
+   "clarify": "",
+   "ms": 2502
+  },
+  {
+   "id": "v-03",
+   "raw": "validate",
+   "final": "validate",
+   "clarify": "",
+   "ms": 2361
+  },
+  {
+   "id": "v-04",
+   "raw": "validate",
+   "final": "validate",
+   "clarify": "",
+   "ms": 2454
+  },
+  {
+   "id": "c-01",
+   "raw": "compare",
+   "final": "compare",
+   "clarify": "",
+   "ms": 3036
+  },
+  {
+   "id": "c-02",
+   "raw": "compare",
+   "final": "compare",
+   "clarify": "",
+   "ms": 3035
+  },
+  {
+   "id": "c-03",
+   "raw": "compare",
+   "final": "compare",
+   "clarify": "",
+   "ms": 4210
+  },
+  {
+   "id": "d-01",
+   "raw": "draft_requirement",
+   "final": "draft_requirement",
+   "clarify": "",
+   "ms": 2823
+  },
+  {
+   "id": "d-02",
+   "raw": "draft_requirement",
+   "final": "draft_requirement",
+   "clarify": "",
+   "ms": 3002
+  },
+  {
+   "id": "d-03",
+   "raw": "draft_requirement",
+   "final": "draft_requirement",
+   "clarify": "",
+   "ms": 2839
+  },
+  {
+   "id": "d-04",
+   "raw": "draft_requirement",
+   "final": "draft_requirement",
+   "clarify": "",
+   "ms": 2789
+  },
+  {
+   "id": "t-01",
+   "raw": "create_ticket",
+   "final": "create_ticket",
+   "clarify": "",
+   "ms": 2818
+  },
+  {
+   "id": "t-02",
+   "raw": "create_ticket",
+   "final": "create_ticket",
+   "clarify": "",
+   "ms": 2872
+  },
+  {
+   "id": "t-03",
+   "raw": "create_ticket",
+   "final": "create_ticket",
+   "clarify": "",
+   "ms": 2864
+  },
+  {
+   "id": "o-01",
+   "raw": "out_of_scope",
+   "final": "out_of_scope",
+   "clarify": "",
+   "ms": 2682
+  },
+  {
+   "id": "o-02",
+   "raw": "out_of_scope",
+   "final": "out_of_scope",
+   "clarify": "",
+   "ms": 2544
+  },
+  {
+   "id": "o-03",
+   "raw": "out_of_scope",
+   "final": "out_of_scope",
+   "clarify": "",
+   "ms": 2384
+  },
+  {
+   "id": "o-04",
+   "raw": "out_of_scope",
+   "final": "out_of_scope",
+   "clarify": "",
+   "ms": 2517
+  },
+  {
+   "id": "o-05",
+   "raw": "out_of_scope",
+   "final": "out_of_scope",
+   "clarify": "",
+   "ms": 2553
+  },
+  {
+   "id": "u-01",
+   "raw": "question",
+   "final": "question",
+   "clarify": "",
+   "ms": 2787
+  },
+  {
+   "id": "u-02",
+   "raw": "question",
+   "final": "question",
+   "clarify": "",
+   "ms": 2486
+  },
+  {
+   "id": "u-03",
+   "raw": "question",
+   "final": "question",
+   "clarify": "",
+   "ms": 2734
+  },
+  {
+   "id": "u-04",
+   "raw": "create_ticket",
+   "final": "clarify",
+   "clarify": "clarify_draft",
+   "ms": 2323
+  },
+  {
+   "id": "u-05",
+   "raw": "compare",
+   "final": "compare",
+   "clarify": "",
+   "ms": 3076
+  },
+  {
+   "id": "u-06",
+   "raw": "validate",
+   "final": "clarify",
+   "clarify": "clarify_attachment",
+   "ms": 2308
+  },
+  {
+   "id": "x-01",
+   "raw": "create_ticket",
+   "final": "create_ticket",
+   "clarify": "",
+   "ms": 2848
+  },
+  {
+   "id": "x-02",
+   "raw": "validate",
+   "final": "validate",
+   "clarify": "",
+   "ms": 2269
+  },
+  {
+   "id": "x-03",
+   "raw": "compare",
+   "final": "clarify",
+   "clarify": "clarify_countries",
+   "ms": 3650
+  },
+  {
+   "id": "x-04",
+   "raw": "draft_requirement",
+   "final": "draft_requirement",
+   "clarify": "",
+   "ms": 4154
+  }
+ ]
+}

@@ -22,6 +22,7 @@ class CopilotState(TypedDict, total=False):
     language: Literal["en", "bg"]
     intent: Intent
     clarify: str                    # which clarifying question (code rule), when intent == "clarify"
+    clarify_options: list[str]      # the likely intents to offer, when the route check was not sure
     countries: list[str]
     date_phrases: list[str]
     search_query: str
