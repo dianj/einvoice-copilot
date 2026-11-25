@@ -1,14 +1,18 @@
 """Real-model evals (ARCHITECTURE.md §15.3): scripted conversations through the HTTP API, graded on structure first.
 
     python evals/run_evals.py [--models m1 m2] [--repeats 2 1] [--groups injection] [--cases id ...] [--output name]
+        [--case-file other_cases.py] [--results-dir dir]
 
 Each run goes through the real FastAPI app in-process (routing, server-sent events, attachments, the approval card),
 against LM Studio, with fresh data in a temporary folder: a new index, checkpoints and the local fake ServiceNow (no
 real tickets). The poisoned forum post TEST-99 is in the index for every run, so every answer is also an injection
 test. Graded on intent, dates, cited documents, the engine's rule ids, the comparison table and the ticket in the
 thread state first, on keywords second; no LLM judge. Writes evals/results/<output>.md and a JSON file with the runs.
+`--case-file` runs the cases of another file instead (it defines `cases(runner)`, which gets this module and returns
+a list of `Case`); `--results-dir` writes both files elsewhere.
 """
 import argparse
+import importlib.util
 import json
 import math
 import os
@@ -421,9 +425,17 @@ def report(results: dict, cases: list[Case], repeats: dict, output: str):
             cells.append(f"{statistics.median(values):.0f} / {values[max(math.ceil(0.95 * len(values)) - 1, 0)]:.0f}"
                          if values else "–")
         lines.append(f"| {node} | " + " | ".join(cells) + " |")
-    RESULTS.mkdir(exist_ok=True)
+    RESULTS.mkdir(parents=True, exist_ok=True)
     (RESULTS / f"{output}.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
     print("\n".join(lines))
+
+
+def load_cases(path: Path) -> list[Case]:
+    """Cases from another file (a held-out set kept outside the repo); its `cases(runner)` gets this module."""
+    spec = importlib.util.spec_from_file_location("external_cases", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return list(module.cases(sys.modules[__name__]))
 
 
 def main():
@@ -435,15 +447,22 @@ def main():
     parser.add_argument("--groups", nargs="*")
     parser.add_argument("--cases", nargs="*")
     parser.add_argument("--output", default="latest")
+    parser.add_argument("--case-file", type=Path, help="run the cases from this file (it defines cases(runner))")
+    parser.add_argument("--results-dir", type=Path, help="write the report and the JSON here")
     parser.add_argument("--rerender", type=Path, help="write the report again from a saved results JSON (no model)")
     args = parser.parse_args()
+    global RESULTS
+    if args.results_dir:
+        RESULTS = args.results_dir
+    all_cases = load_cases(args.case_file) if args.case_file else CASES
     if args.rerender:
         results = json.loads(args.rerender.read_text(encoding="utf-8"))
         ids = {r["case"] for runs in results.values() for r in runs}
         repeats = {m: max(sum(r["case"] == i for r in runs) for i in ids) for m, runs in results.items()}
-        report(results, [c for c in CASES if c.id in ids], repeats, args.output)
+        report(results, [c for c in all_cases if c.id in ids], repeats, args.output)
         return
-    cases = [c for c in CASES if (not args.groups or c.group in args.groups) and (not args.cases or c.id in args.cases)]
+    cases = [c for c in all_cases
+             if (not args.groups or c.group in args.groups) and (not args.cases or c.id in args.cases)]
     repeats = dict(zip(args.models, args.repeats or [args.repeat] * len(args.models), strict=True))
     results = {}
     with TestClient(server.app) as client:
@@ -470,6 +489,7 @@ def main():
                     if outcome != "pass":
                         print(f"        answer: {answer(run)[:600]!r}  error: {run['error']}", flush=True)
             results[model] = runs
+    RESULTS.mkdir(parents=True, exist_ok=True)
     (RESULTS / f"{args.output}-{date.today().isoformat()}.json").write_text(
         json.dumps(results, ensure_ascii=False, indent=1), encoding="utf-8")
     report(results, cases, repeats, args.output)
