@@ -11,7 +11,7 @@ import math
 import time
 import uuid
 from collections import Counter, defaultdict
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import aiosqlite
 
@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS runs (
     kind TEXT NOT NULL,              -- message | approval
     started_at TEXT NOT NULL,
     ms INTEGER,
-    status TEXT NOT NULL,            -- running | ok | waiting | failed
+    status TEXT NOT NULL,            -- running | ok | waiting | failed | cancelled | interrupted
     intent TEXT,
     language TEXT,
     model TEXT NOT NULL,
@@ -90,6 +90,20 @@ async def start_run(thread_id: str, kind: str, prompt_version: str) -> str:
         await db.close()
     current_run.set(run_id)
     return run_id
+
+
+async def mark_stale_runs(older_than_minutes: int = 10) -> int:
+    """At start-up: runs still `running` after this long were cut off by a crash or a restart -> `interrupted`.
+    A recent one is left alone (another worker may still be answering it)."""
+    cutoff = (datetime.now(UTC) - timedelta(minutes=older_than_minutes)).isoformat(timespec="milliseconds")
+    db = await _db()
+    try:
+        cur = await db.execute("UPDATE runs SET status = 'interrupted' WHERE status = 'running' AND started_at < ?",
+                               (cutoff,))
+        await db.commit()
+        return cur.rowcount
+    finally:
+        await db.close()
 
 
 async def finish_run(run_id: str, started: float, status: str, final: dict | None = None, state: dict | None = None):

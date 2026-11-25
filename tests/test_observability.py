@@ -148,3 +148,60 @@ def test_an_older_database_gets_the_gates_column(tmp_path, monkeypatch):
     with sqlite3.connect(path) as conn:
         assert "gates_json" in {r[1] for r in conn.execute("PRAGMA table_info(spans)")}
     assert str(path) in observability._ready
+
+
+# --- runs that never finish (review T17.A1) ---------------------------------------------------------------------
+
+class _StuckGraph:
+    """A graph that reports one node and then waits forever (a slow model), for the disconnect test."""
+
+    async def astream(self, graph_input, config, stream_mode):
+        import asyncio
+
+        yield "updates", {"route": {"intent": "question"}}
+        await asyncio.Event().wait()
+
+
+def test_disconnect_marks_run_cancelled(tmp_path, monkeypatch):
+    """The browser closes the stream while a node runs: the response task is cancelled. The run must not stay
+    `running` forever."""
+    import asyncio
+
+    from copilot.graph.run import _stream
+
+    monkeypatch.setattr(config, "APP_DB", tmp_path / "app.sqlite")
+
+    async def disconnect_after_first_event():
+        events, seen = [], asyncio.Event()
+
+        async def consume():
+            async for event in _stream(_StuckGraph(), "t-disconnect", {"user_input": "hi"}):
+                events.append(event)
+                seen.set()
+        task = asyncio.create_task(consume())
+        await seen.wait()
+        await asyncio.sleep(0.05)              # the graph is now inside its slow node
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+        return await observability.get_run(events[0]["run_id"])
+    run = asyncio.run(disconnect_after_first_event())
+    assert run["status"] == "cancelled" and run["ms"] is not None
+
+
+def test_startup_marks_stale_runs(tmp_path, monkeypatch):
+    """Runs left `running` by a crash or a restart become `interrupted` at start-up; a recent one is left alone (it may
+    belong to another worker)."""
+    import sqlite3
+    from datetime import UTC, datetime, timedelta
+
+    monkeypatch.setattr(config, "APP_DB", tmp_path / "app.sqlite")
+    with sqlite3.connect(config.APP_DB) as conn:
+        conn.executescript(observability.SCHEMA)
+        for run_id, minutes in (("a" * 32, 30), ("b" * 32, 1)):
+            started = (datetime.now(UTC) - timedelta(minutes=minutes)).isoformat(timespec="milliseconds")
+            conn.execute("INSERT INTO runs (run_id, thread_id, kind, started_at, status, model) "
+                         "VALUES (?, 't', 'message', ?, 'running', 'm')", (run_id, started))
+    with TestClient(server.app) as c:
+        assert c.get("/api/runs/" + "a" * 32).json()["status"] == "interrupted"
+        assert c.get("/api/runs/" + "b" * 32).json()["status"] == "running"

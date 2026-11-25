@@ -148,3 +148,75 @@ def test_backend_from_settings(monkeypatch):
 
 def test_fake_backend_defaults_to_the_app_database():
     assert FakeServiceNow().path == Path(config.APP_DB)
+
+
+# --- answers that are not the API, and a POST that may have been sent (review T17.A2, A3) ---------------------------
+
+def test_rest_an_html_page_is_a_safe_error():
+    """A sleeping developer instance or a proxy answers 200 with an HTML page, not JSON."""
+    import httpx
+
+    def asleep(request):
+        return httpx.Response(200, html="<html><body>Your instance is hibernating</body></html>")
+    adapter = RestServiceNow(INSTANCE, USER, PASSWORD, TABLE, transport=httpx.MockTransport(asleep), retry_delay=0)
+    with pytest.raises(TicketSystemError, match="did not answer with its API"):
+        asyncio.run(adapter.list_recent())
+
+    def broken_json(request):
+        return httpx.Response(200, content=b"{not json", headers={"content-type": "application/json"})
+    adapter = RestServiceNow(INSTANCE, USER, PASSWORD, TABLE, transport=httpx.MockTransport(broken_json),
+                             retry_delay=0)
+    with pytest.raises(TicketSystemError, match="did not answer with its API"):
+        asyncio.run(adapter.create_requirement(draft(), key(), "t"))
+
+
+def test_rest_a_post_that_timed_out_is_looked_up_not_sent_again():
+    """The instance stored the record but the answer never arrived (ReadTimeout). Sending the POST again would make a
+    second ticket; the adapter looks the idempotency key up again instead."""
+    import httpx
+
+    api = FakeServiceNowAPI()
+
+    def slow_answer(request):
+        response = api.handle(request)
+        if request.method == "POST":
+            raise httpx.ReadTimeout("the answer did not arrive", request=request)
+        return response
+    adapter = RestServiceNow(INSTANCE, USER, PASSWORD, TABLE, transport=httpx.MockTransport(slow_answer),
+                             retry_delay=0)
+    k = key()
+    ref = asyncio.run(adapter.create_requirement(draft(), k, "t"))
+    assert [m for m, _ in api.calls] == ["GET", "POST", "GET"]
+    assert len(api.records) == 1 and ref.number == api.records[0]["number"] and ref.created
+
+
+def test_rest_a_post_that_timed_out_before_storing_is_reported():
+    import httpx
+
+    api = FakeServiceNowAPI()
+
+    def lost(request):
+        if request.method == "POST":
+            api.calls.append(("POST", request.url.path))
+            raise httpx.ReadTimeout("no answer", request=request)
+        return api.handle(request)
+    adapter = RestServiceNow(INSTANCE, USER, PASSWORD, TABLE, transport=httpx.MockTransport(lost), retry_delay=0)
+    with pytest.raises(TicketSystemError, match="not reachable"):
+        asyncio.run(adapter.create_requirement(draft(), key(), "t"))
+    assert [m for m, _ in api.calls] == ["GET", "POST", "GET"] and api.records == []
+
+
+def test_rest_a_post_is_retried_when_it_never_left():
+    """A refused connection means nothing was sent: one retry is safe."""
+    import httpx
+
+    api, refused = FakeServiceNowAPI(), []
+
+    def refuse_first_post(request):
+        if request.method == "POST" and not refused:
+            refused.append(request)
+            raise httpx.ConnectError("refused", request=request)
+        return api.handle(request)
+    adapter = RestServiceNow(INSTANCE, USER, PASSWORD, TABLE, transport=httpx.MockTransport(refuse_first_post),
+                             retry_delay=0)
+    assert asyncio.run(adapter.create_requirement(draft(), key(), "t")).created and len(api.records) == 1

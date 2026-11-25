@@ -5,6 +5,7 @@ engine's report), table (a comparison), draft (a checked requirement draft), app
 the draft and the interrupt id to answer with), ticket (created or found), final (answer, citations, dates, notes),
 error (the run failed; the checkpoint keeps the last completed step, so the thread stays usable).
 """
+import asyncio
 import logging
 import time
 from collections.abc import AsyncIterator
@@ -124,6 +125,12 @@ async def _stream(graph, thread_id: str, graph_input, kind: str = "message") -> 
                     yield {"event": "draft", "draft": update["requirement_draft"]}
                 elif node == "create_ticket" and update.get("ticket"):
                     yield {"event": "ticket", "ticket": update["ticket"]}
+    except asyncio.CancelledError:
+        # The client went away (closed the tab, lost the connection): the response task is cancelled. Not an
+        # Exception, so it needs its own branch, or the run would stay `running` forever.
+        log.info("thread %s: the client disconnected, run %s cancelled", thread_id, run_id)
+        await observability.finish_run(run_id, started, "cancelled")
+        raise
     except LLMError as exc:
         log.warning("thread %s: %s", thread_id, exc)
         await observability.finish_run(run_id, started, "failed")

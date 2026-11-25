@@ -34,7 +34,10 @@ VERSION = "0.4.0"
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """The graph with a persistent SQLite checkpointer: threads survive a restart."""
+    """The graph with a persistent SQLite checkpointer: threads survive a restart. Runs a restart cut off are marked
+    `interrupted`."""
+    if stale := await observability.mark_stale_runs():
+        log.warning("%d run(s) left running by an earlier process marked interrupted", stale)
     config.CHECKPOINT_DB.parent.mkdir(parents=True, exist_ok=True)
     async with AsyncSqliteSaver.from_conn_string(str(config.CHECKPOINT_DB)) as checkpointer:
         app.state.graph = build_graph(checkpointer)
