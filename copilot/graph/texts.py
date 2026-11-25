@@ -62,6 +62,9 @@ TEXTS = {
         "intent_out_of_scope": "help with something outside these documents",
         "approval_unclear": "I did not take that as a clear approval, so nothing was created. Use Approve or Reject "
                             "on the card, or answer yes or no.",
+        "conflict": "Conflict between the documents: {older}, but {title} [{ref}] sets {value}, and it applies "
+                    "(higher authority, or the same authority and published later).",
+        "conflict_loser": "{title} [{ref}] still gives {value}",
     },
     "bg": {
         "capabilities": ("Мога да отговарям на въпроси за правилата за електронни фактури във Валдория, Кестрия и "
@@ -123,6 +126,9 @@ TEXTS = {
         "intent_out_of_scope": "помогна с нещо извън тези документи",
         "approval_unclear": "Не приех това като ясно одобрение, затова нищо не е създадено. Използвайте Approve или "
                             "Reject на картата или отговорете с да или не.",
+        "conflict": "Противоречие между документите: {older}, но {title} [{ref}] определя {value} и се прилага то "
+                    "(по-висока сила или същата сила и по-късна публикация).",
+        "conflict_loser": "{title} [{ref}] все още посочва {value}",
     },
 }
 

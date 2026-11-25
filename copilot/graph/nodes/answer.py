@@ -7,13 +7,17 @@ that claims to be in the documents but cites nothing valid is replaced by an hon
 import asyncio
 import re
 from datetime import date
+from functools import cache
 
+from copilot.corpus.loader import load_facts
 from copilot.graph import prompts
 from copilot.graph.nodes.common import passage_dict, reply, traced, unique_passages
+from copilot.graph.nodes.conflicts import conflict_named, conflict_sentences, find_conflicts
 from copilot.graph.texts import text
 from copilot.kb.retriever import retriever
 from copilot.llm import complete_json
 
+facts = cache(load_facts)   # corpus/facts.yaml, read once
 VAGUE_WORDS = 4   # a message this short gets the answer plus the other things the assistant can do
 # The model sometimes writes a schema field into the text ("in_documents: false. Предоставените документи ...").
 FIELD_ECHO = re.compile(r"^\s*in_documents\s*:\s*(true|false)\s*[.,;:]?\s*", re.I)
@@ -99,6 +103,17 @@ async def answer_grounded(state) -> dict:
     if not valid:
         notes.append("The model's answer cited no retrieved passage, so it was not shown.")
         return reply(text(lang, "ungrounded"), citations=[], notes=notes)
+    # Conflicts between documents are decided in code: a conflict the answer has not named gets the sentence with both
+    # citations. Named means both values are in the text; citing both documents is not enough (Gemma cited the law
+    # and the amendment and said nothing about the old date).
+    for conflict in find_conflicts(valid, passages, facts()):
+        named = {p["ref"] for p, _ in conflict.losers} | {conflict.winner["ref"]}
+        if conflict_named(conflict, cleaned, lang):
+            continue
+        [sentence] = conflict_sentences([conflict], lang)
+        cleaned = f"{cleaned}\n\n{sentence}"
+        valid = list(dict.fromkeys([*valid, *sorted(named - set(valid), key=lambda r: r != conflict.winner["ref"])]))
+        notes.append(f"Conflict named by code ({conflict.family}): {', '.join(sorted(named))}.")
     if len(state["user_input"].split()) <= VAGUE_WORDS:   # "What about Valdoria?": also say what else is possible
         cleaned = f"{cleaned}\n\n{text(lang, 'more_options')}"
     return reply(cleaned, citations=valid, notes=notes)
