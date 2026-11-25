@@ -322,7 +322,7 @@ async def get_thread(thread_id: str, request: Request):
 
 @app.get("/api/runs/{run_id}")
 async def get_run(run_id: str = Path(pattern=r"^[0-9a-f]{32}$")):
-    """A stored run: status, intent, timing, the final result and its spans (ARCHITECTURE.md §11)."""
+    """A stored run: status, intent, timing, the final result and its spans."""
     run = await observability.get_run(run_id)
     if run is None:
         raise HTTPException(404, f"Unknown run '{run_id}'.")

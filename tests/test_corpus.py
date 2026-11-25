@@ -1,4 +1,4 @@
-"""The corpus stays consistent with itself, with the rules and with the key facts (ARCHITECTURE.md §6.3)."""
+"""The corpus stays consistent with itself, with the rules and with the key facts."""
 import re
 from datetime import date, timedelta
 

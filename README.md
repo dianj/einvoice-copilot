@@ -14,9 +14,14 @@ deterministic **rule engine with 30 rules** and **45 sample invoices**, **date-a
 78 questions, a **LangGraph assistant** that answers with checked citations, explains the engine's findings and
 compares countries, **requirement drafts that become ServiceNow tickets only after a person approves them** (a
 LangGraph interrupt; checked live on a ServiceNow developer instance), **calibrated decision gates** for typed
-approvals and routing, **observability** (a trace per answer, metrics), and **real-model evals**: 42 cases, Gemma 4
-26B 83/84, Qwen 3.8 27B 42/42 ([results](#results)). One page for non-developers:
-[solution brief](docs/SOLUTION_BRIEF.md); a 3-minute [live demo script](docs/DEMO_SCRIPT.md).
+approvals and routing, **observability** (a trace per answer, metrics), a read-only **MCP server**, and
+**real-model evals**: 43 cases, Gemma 4 26B 84/86, Qwen 3.8 27B 43/43, plus a held-out set ([results](#results)). One page for non-developers:
+[solution brief](docs/SOLUTION_BRIEF.md); a 3-minute [live demo script](docs/DEMO_SCRIPT.md); how it was built and
+checked: [docs/HOW_IT_WAS_BUILT.md](docs/HOW_IT_WAS_BUILT.md).
+
+> **Status:** complete portfolio demo, verified 2026-11-25: 433 tests, 99 % coverage, ruff clean; real-model evals
+> Gemma 4 26B 84/86 and Qwen 3.8 27B 43/43 on 43 development cases, 19/20 each on a held-out set. See [Limitations](#limitations) and
+> [What production would need](#what-production-would-need).
 
 ![Flow of one turn: route by the model, corrected by code rules and a calibrated route check; question, validation, comparison or requirement draft; a ticket only after a person approves](einvoice-copilot_diagram.svg)
 
@@ -90,10 +95,13 @@ The model only ever fills a JSON schema (`response_format: json_schema`); code d
   score: it would not be calibrated.
 - **extract_date**: `dateparser` (English and Bulgarian) turns the phrases into up to three dates; no date means
   today, and the answer says so. An invoice is judged by its own date.
-- **answer_grounded**: answers per date from the passages in force on that date, resolves conflicts by authority and
-  publication date, and names them. Every `[DOC §n]` citation must match a retrieved passage: others are removed,
+- **answer_grounded**: answers per date from the passages in force on that date. Every `DOC §n` reference must match
+  a retrieved passage, wherever it stands (in brackets, in parentheses or bare in a sentence): others are removed,
   and an answer that cites nothing valid is replaced by "could not answer". Below the similarity gate the model is
-  not asked at all.
+  not asked at all. **Conflicts are decided in code:** `corpus/facts.yaml` groups facts into families (what the
+  amendment says, what the original law and the old FAQ still say); when the answer rests on one member and another
+  retrieved passage states a different value, code picks the one that applies (authority first, then the later
+  publication) and adds the sentence that names the conflict with both citations, unless the answer already did.
 - **explain_findings**: the schema only allows the report's rule ids; code checks that each is explained exactly
   once and falls back to the engine's own message for any the model left out. A valid invoice or an unreadable file
   is reported without the model.
@@ -112,10 +120,18 @@ The model only ever fills a JSON schema (`response_format: json_schema`); code d
   exactly the current draft. The ticket's idempotency key (thread + draft hash) makes a second request return the
   existing ticket.
 
+**Why a fixed graph and not free tool calling.** Compliance work needs the same steps every time: the date resolved
+before the search, the engine run before anything is said about validity, the approval before the ticket. In a fixed
+graph those are edges the model cannot skip; with free tool calling they would be instructions it can forget. The
+model still chooses the branch (the route), and code rules and a calibrated check correct that choice.
+
 `POST /api/chat` streams the run as server-sent events (each node's start and duration, the sources, findings or
 table, then the answer); the browser reads them with `fetch` because the request is a POST. Threads are kept by
 LangGraph's SQLite checkpointer, so a conversation survives a restart; a second message on a busy thread gets 409.
-Prompts live in one versioned module ([copilot/graph/prompts.py](copilot/graph/prompts.py)).
+Thread ids are made by the server and bound to the browser that created them (an httpOnly cookie): another browser,
+or a guessed id, gets 404 on reading the thread, writing to it and answering its approval card. Text from the user, an
+invoice or a passage cannot close or open a prompt block (`<<` and `>>` inside it are neutralised). Prompts live in
+one versioned module ([copilot/graph/prompts.py](copilot/graph/prompts.py)).
 
 With the real model (Gemma 4 26B in LM Studio), checked by hand on the demo questions: the Valdorian question for
 30 June and 1 July gets two different answers and names the older FAQ's conflicting date; the Kestrian demo invoice
@@ -126,7 +142,7 @@ rule). Requirement drafts, checked by hand on five requests (Orlavia's 4-hour de
 Kestria's reduced rate and KSK VAT total, a Bulgarian request about the Orlavian QR code): every draft cited the right
 amendment or specification and linked the matching rule (OL-05, VD-06, KS-05, KS-03/04, OL-02/03); the dates were
 in the passages; the two requests without a date were flagged on the card; "Yes, please create the ticket" was
-routed to the approval every time. The [results](#results) below measure all of this on 42 cases.
+routed to the approval every time. The [results](#results) below measure all of this on 43 cases.
 
 ![Approval: a requirement drafted by the model, checked by code, waiting for a person before any ticket exists](docs/screenshots/04-approval.png)
 
@@ -146,7 +162,9 @@ instead of guessing (Gemma 2 → 3 of 6, Qwen 0 → 4 of 6).
 Tickets go through one interface with two implementations: a local fake on SQLite (the default; numbers
 `LOCREQ0001001…`) and the ServiceNow **Table API** (`SN_BACKEND=rest`, Basic auth for an integration user, one retry
 on 429/5xx/connection errors, the idempotency key looked up before insert, caller text never placed in an encoded
-query). One contract test suite runs against the fake, against the REST adapter with a fake Table API, and, with
+query). A POST is sent again only when it never left (connection refused); after a timeout on the answer the
+instance may have stored the record, so the key is looked up again instead of creating a second ticket. An answer
+that is not the API's JSON (a hibernating developer instance answers 200 with an HTML page) becomes a clear error. One contract test suite runs against the fake, against the REST adapter with a fake Table API, and, with
 `SN_LIVE_TESTS=1`, against a real instance ([setup](docs/SERVICENOW_SETUP.md)). The Tickets tab lists them.
 Checked against a ServiceNow Personal Developer Instance: the 19 contract tests pass live, and a draft from the chat
 became a real `LOCREQ` record after the approval. The live run found one thing the fakes could not: ServiceNow
@@ -208,23 +226,28 @@ probability, action and time, and `/api/metrics` counts their actions. API: `/ap
 
 ## Results
 
-`evals/run_evals.py` runs **42 cases in 9 groups** through the real HTTP API with a fresh database, index (including
+`evals/run_evals.py` runs **43 cases in 9 groups** through the real HTTP API with a fresh database, index (including
 the poisoned forum post TEST-99) and fake ServiceNow per run, "today" frozen at 2026-05-15. Graded on what the system
 did (intent, dates, cited documents, the engine's rule ids, the table, the ticket), wording second; no LLM judge.
 
 | Model | Passed | Median time per turn |
 |---|---|---|
-| Gemma 4 26B (2 runs) | **83/84** | 7.0 s |
-| Qwen 3.8 27B (1 run) | **42/42** | 30.5 s |
-| Qwen 3.8 27B, injection group again (2 runs) | **8/8** | |
+| Gemma 4 26B (2 runs) | **84/86** | 6.6 s |
+| Qwen 3.8 27B (1 run) | **43/43** | 26.1 s |
+| Conflict group again, after the last fix: Gemma (5 runs), Qwen (1 run) | **14/15** · **3/3** | |
 
 | Group | Gemma | Qwen | | Group | Gemma | Qwen |
 |---|---|---|---|---|---|---|
 | grounded answers | 16/16 | 8/8 | | validation explained | 12/12 | 6/6 |
 | temporal (boundary days) | 12/12 | 6/6 | | compare | 6/6 | 3/3 |
-| conflicting documents | 5/6 | 3/3 | | drafts, approval, tickets | 8/8 | 4/4 |
+| conflicting documents | 4/6 | 3/3 | | drafts, approval, tickets | 8/8 | 4/4 |
 | abstention | 8/8 | 4/4 | | routing | 8/8 | 4/4 |
-| injection | 8/8 | 4/4 | | | | |
+| injection | 10/10 | 5/5 | | | | |
+
+**Held-out set.** 20 conversations written after development and kept outside the repository (new facts, boundary
+dates, two conflicts, two abstentions, five unseen invoices, a typed "create the ticket" after a rejection). Run once
+before and once after the last round of changes, graded the same way: **Gemma 19/20 and Qwen 19/20 both times**
+(Gemma missed one conflict case, Qwen one abstention case). Nothing was tuned on it.
 
 **How the numbers got there.** The first full run (before the fixes below) gave Gemma 70/84 and Qwen 36/42. Every
 failure was read, then reproduced as a test or a re-run before anything changed:
@@ -241,12 +264,15 @@ failure was read, then reproduced as a test or a re-run before anything changed:
   does not name the country (see [Date-aware retrieval](#date-aware-retrieval)).
 - **"What about Valdoria?"**: the expectation was too strict (a cited overview is also a good answer); very short
   messages now also get a line with what else the assistant can do.
-- **The one failure left:** in 1 of Gemma's 2 runs of `conflict-vd-all-b2b`, the date and citation were right but
-  the answer did not say that the FAQ still names 2027. The conflict group re-run 5 more times on Gemma: **13/15**;
-  the other miss was a Bulgarian answer that said "not in the documents" although the amendment had been retrieved,
-  and began with the schema's field name (`in_documents: false.`), which the code now removes.
+- **Conflicts are now decided in code.** Gemma sometimes gave the right date without saying that the FAQ still names
+  2027 (13/15 over five runs of the group). Code now adds that sentence with both citations. The first version of
+  the rule treated "cites both documents" as "named the conflict", and the full run caught it: Gemma cited the law
+  and the amendment and said nothing about the old date (`conflict-vd-all-b2b` 0/2 in the 84/86 run). With the rule
+  "both values are in the text": 5/5 on that case, the group **14/15**. The miss left is a Bulgarian answer that says
+  "not in the documents" although the amendment was retrieved; code adds nothing to an answer that abstains.
 
-Reports: [latest](evals/results/latest.md), [Qwen injection](evals/results/e5-injection-qwen.md),
+Reports: [latest](evals/results/t17-sprint1.md), [conflict group after the fix](evals/results/t17-conflict.md),
+earlier: [E5](evals/results/latest.md), [Qwen injection](evals/results/e5-injection-qwen.md),
 [conflict group ×5 on Gemma](evals/results/e5-conflict-gemma.md). The prompt version of every run is in
 `copilot/graph/prompts.py` and on every trace.
 
@@ -259,18 +285,70 @@ python evals/run_evals.py --rerender evals/results/latest-<date>.json   # rewrit
 ## Quick start
 
 ```bash
-pip install -r requirements.txt
+pip install -r requirements.txt          # or, with exact versions and hashes: pip install --require-hashes -r requirements.lock
 uvicorn server:app --port 8000          # or: docker compose up
 ```
 
 Open `http://localhost:8000`. The Assistant and Compare tabs need an OpenAI-compatible model server (developed with
-LM Studio and Gemma 4 26B; see [.env.example](.env.example)); the Validate tab works without one. API: `/api/chat`,
-`/api/attachments`, `/api/threads/{id}`, `/api/threads/{id}/approval`, `/api/tickets`, `/api/health`, `/api/corpus`,
+LM Studio and Gemma 4 26B; see [.env.example](.env.example)); the Validate tab works without one. The embedder and the
+index are loaded in the background at start-up: `/api/health` answers at once, `/api/ready` returns 200 once they
+are warm. The full API with its schemas is at `/docs` (OpenAPI): `/api/chat`, `/api/threads`, `/api/attachments`,
+`/api/threads/{id}`, `/api/threads/{id}/approval`, `/api/tickets`, `/api/runs/{id}`, `/api/metrics`, `/api/corpus`,
 `/api/rules?country=KS&transaction_type=B2G&as_of=2026-03-05`, `/api/samples`, and
 
 ```bash
 curl -X POST --data-binary @samples/invoices/ks-demo-old-rate-no-ksk-total.xml http://localhost:8000/api/validate
 ```
+
+## Use it from another agent (MCP)
+
+`python -m copilot.mcp_server` serves four **read-only** tools over MCP (stdio): `search_regulations` (date-aware
+search; `answerable` false means "not in the documents"), `validate_invoice` (the rule engine), `compare_countries`
+(the passages per aspect and country for a date) and `list_rules`. There is no model inside: the calling agent has its
+own, so it gets evidence to cite, not a second model's opinion. Tickets are not exposed; they need a person's approval
+in the app. A client configuration (Claude Desktop, an IDE, or any MCP client that starts a local process):
+
+```json
+{
+  "mcpServers": {
+    "einvoice-copilot": {
+      "command": "python",
+      "args": ["-m", "copilot.mcp_server"],
+      "cwd": "/path/to/einvoice-copilot",
+      "env": {"FROZEN_TODAY": "2026-05-15"}
+    }
+  }
+}
+```
+
+`tests/test_mcp_server.py` lists and calls the tools in an in-memory session and starts the stdio server as a client
+would.
+
+## Limitations
+
+- **Fictional data, small scale:** 14 documents and 30 rules in three countries. The design (versioned documents,
+  rules with effective ranges, citations checked in code) is meant to carry to real ones, but it has not met real
+  regulations, their volume or their ambiguity.
+- **Small evals:** tens of cases per model, so one run's pass rate has a wide confidence interval; a held-out set of
+  20 conversations (kept outside the repo) is run before and after each round of changes and reported apart.
+- **One process:** SQLite for checkpoints, runs and the local tickets; the per-thread lock is in memory.
+- **Demo access control:** a browser cookie binds threads to whoever created them; there are no user accounts or
+  roles. `/api/metrics`, `/api/runs/{id}` and `/api/tickets` are open on the local machine.
+- **No retention:** attachments, checkpoints and runs are kept until deleted by hand.
+
+## What production would need
+
+- **Sign-in and roles:** threads bound to an authenticated user instead of a cookie; separate analyst and approver
+  roles, and an approver who is not the person who drafted the requirement (four eyes).
+- **Shared state:** a Postgres checkpointer and run store, the per-thread lock in the database or Redis, more than one
+  worker.
+- **Retention and privacy:** invoices hold personal data, so a retention period for attachments, threads and runs, and
+  deletion on request.
+- **Operations:** structured logs with run and thread ids, OpenTelemetry traces, alerts on failed runs and on the
+  ticket system; secrets from a vault, not `.env`.
+- **The model behind a gateway:** a hosted model only through the organisation's approved gateway, with the same
+  JSON schemas; the evals re-run on it before switching.
+- **Content updates:** a review step when a regulation document or rule file changes, with the evals as the gate.
 
 ## Tests
 
@@ -280,8 +358,11 @@ that do not match the request's schema), and a hashing embedder stands in for th
 ```bash
 pip install -r requirements-dev.txt
 python -m playwright install chromium
-python -m pytest --cov=copilot --cov=server        # 383 tests, 99 % coverage, incl. Playwright
+python -m pytest --cov=copilot --cov=server        # 433 tests, 99 % coverage, incl. Playwright
 ```
+
+Dependencies: [SECURITY.md](SECURITY.md) (the hashed lock, Dependabot, `pip-audit` in CI and the advisories that do
+not apply).
 
 ## License
 

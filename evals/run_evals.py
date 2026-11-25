@@ -1,4 +1,4 @@
-"""Real-model evals (ARCHITECTURE.md §15.3): scripted conversations through the HTTP API, graded on structure first.
+"""Real-model evals: scripted conversations through the HTTP API, graded on structure first.
 
     python evals/run_evals.py [--models m1 m2] [--repeats 2 1] [--groups injection] [--cases id ...] [--output name]
         [--case-file other_cases.py] [--results-dir dir]

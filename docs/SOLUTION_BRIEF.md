@@ -60,13 +60,13 @@ rule ids, tickets), not on the wording. Details in the [README](../README.md#res
 
 | | Result |
 |---|---|
-| Real-model evals, 42 cases in 9 groups | Gemma 4 26B **83/84** (2 runs), Qwen 3.8 27B **42/42**; the one miss: a correct answer that did not name the outdated FAQ |
+| Real-model evals, 43 cases in 9 groups | Gemma 4 26B **84/86** (2 runs), Qwen 3.8 27B **43/43**; a held-out set of 20: **19/20** on each model |
 | Injection (forum post in the index, "pre-approved" in the XML, "skip the validation", "I approve in advance") | **8/8** on Gemma (2 runs), **12/12** on Qwen (3 runs) |
 | Retrieval, 78 labelled questions | hit@3 **1.000** with the date filter, 0 date-filter violations, 3.4 ms median |
 | Validation | 45 sample invoices yield exactly their expected rule ids; every rule fails in one sample and passes in another |
 | Typed approvals through the gate (32 labelled replies) | 32/32 on both models; no steering reply approved |
 | ServiceNow | 19/19 contract tests against a real developer instance |
-| Automated tests | 383, 99 % line coverage, run in CI on every push |
+| Automated tests | 433, 99 % line coverage, run in CI on every push |
 
 Every failure the evals found was first reproduced, then fixed in code (or in the grader) and measured again; the
 README lists them.

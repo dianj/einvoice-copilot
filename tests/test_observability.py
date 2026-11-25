@@ -1,4 +1,4 @@
-"""Runs and spans (ARCHITECTURE.md §11): one run per request, one span per node with tokens and documents, the trace
+"""Runs and spans: one run per request, one span per node with tokens and documents, the trace
 and the metrics over HTTP."""
 import pytest
 from fastapi.testclient import TestClient

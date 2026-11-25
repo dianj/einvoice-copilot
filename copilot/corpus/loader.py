@@ -1,6 +1,6 @@
 """Load the corpus: Markdown documents with YAML front matter, split into numbered `##` sections.
 
-Two time axes (ARCHITECTURE.md §3.3): `valid_from` / `valid_to` say when this *version* of a document is the current
+Two time axes: `valid_from` / `valid_to` say when this *version* of a document is the current
 one (the retrieval filter uses them); `announces` lists the obligation dates the text talks about, which may lie in
 the future of the document's own validity.
 """

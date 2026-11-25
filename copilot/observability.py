@@ -1,4 +1,4 @@
-"""Runs and spans (ARCHITECTURE.md §11): what each request did, node by node, stored in SQLite (`APP_DB`).
+"""Runs and spans: what each request did, node by node, stored in SQLite (`APP_DB`).
 
 A run is one request to the graph (a message, a button press or an approval). `start_run` sets the run id in a
 context variable, so every node span (`record_span`, called by the `traced` decorator) and every LLM call
