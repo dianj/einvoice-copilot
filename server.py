@@ -6,6 +6,7 @@ Run with: uvicorn server:app
 import asyncio
 import json
 import logging
+import time
 import uuid
 from contextlib import asynccontextmanager
 from datetime import date
@@ -13,7 +14,7 @@ from typing import Literal
 
 import httpx
 from fastapi import FastAPI, HTTPException, Path, Query, Request
-from fastapi.responses import FileResponse, Response, StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from pydantic import BaseModel, Field
 
@@ -23,6 +24,7 @@ from copilot.graph.build import build_graph
 from copilot.graph.run import pending_approval, stream_resume, stream_turn
 from copilot.integrations.servicenow import TicketSystemError, ticket_system
 from copilot.integrations.servicenow.models import DraftEdits, TicketDetail, TicketSummary
+from copilot.kb import retriever as kb_retriever
 from copilot.rules.definitions import rules
 from copilot.rules.engine import Country, Stage, TaxpayerSize, TransactionType, ValidationReport, validate
 
@@ -41,7 +43,34 @@ async def lifespan(app: FastAPI):
     config.CHECKPOINT_DB.parent.mkdir(parents=True, exist_ok=True)
     async with AsyncSqliteSaver.from_conn_string(str(config.CHECKPOINT_DB)) as checkpointer:
         app.state.graph = build_graph(checkpointer)
-        yield
+        app.state.checkpointer = checkpointer
+        app.state.warm = {"ready": False, "chunks": None, "model": None, "error": None}
+        warming = asyncio.create_task(warm_up(app.state.warm))
+        try:
+            yield
+        finally:
+            warming.cancel()
+
+
+def load_retriever():
+    """The app's retriever (embedder + on-disk index, synced with the corpus), with the model loaded by one query."""
+    kb = kb_retriever.retriever()
+    kb.embedder.embed_query("warm-up")
+    return kb
+
+
+async def warm_up(state: dict):
+    """In the background at start-up, so the first question does not pay for the model load and the index sync.
+    The app answers meanwhile; `/api/ready` says when it is warm."""
+    started = time.perf_counter()
+    try:
+        kb = await asyncio.to_thread(load_retriever)
+    except Exception as exc:                   # the chat would try again on first use; ready stays 503
+        log.exception("warm-up failed")
+        state["error"] = type(exc).__name__
+        return
+    state.update(ready=True, chunks=len(kb.chunks), model=getattr(kb.embedder, "name", None))
+    log.info("warm: %d chunks, embedder %s, %.1f s", state["chunks"], state["model"], time.perf_counter() - started)
 
 
 app = FastAPI(title="E-Invoice Compliance Copilot", version=VERSION, lifespan=lifespan)
@@ -58,14 +87,40 @@ async def llm_reachable() -> bool:
         return False
 
 
+async def checkpointer_ok(request: Request) -> bool:
+    checkpointer = getattr(request.app.state, "checkpointer", None)
+    if checkpointer is None:
+        return False
+    try:
+        async with checkpointer.conn.execute("SELECT 1") as cur:
+            return (await cur.fetchone()) is not None
+    except Exception:
+        return False
+
+
 @app.get("/api/health")
-async def health():
+async def health(request: Request):
+    """Liveness and what each part reports. Always 200 while the process answers; use
+    `/api/ready` to know when it can answer questions quickly."""
     docs, rule_set = corpus(), rules()
+    warm = getattr(request.app.state, "warm", None) or {}
     return {"status": "ok", "version": VERSION, "llm": {"base_url": config.LLM_BASE_URL,
                                                          "reachable": await llm_reachable()},
+            "embedder": {"model": warm.get("model") or config.EMBED_MODEL, "loaded": bool(warm.get("ready"))},
+            "index": {"ready": bool(warm.get("ready")), "chunks": warm.get("chunks"), "error": warm.get("error")},
+            "checkpointer": {"ok": await checkpointer_ok(request)},
             "corpus": {"documents": len(docs)}, "rules": {"count": len(rule_set.all)},
             "tickets": {"backend": config.SN_BACKEND},
             "today": config.today().isoformat()}
+
+
+@app.get("/api/ready")
+async def ready(request: Request):
+    """503 until the embedder is loaded and the index is in sync (a few seconds after start-up), then 200."""
+    warm = getattr(request.app.state, "warm", None) or {}
+    if not warm.get("ready"):
+        return JSONResponse({"ready": False, "error": warm.get("error")}, status_code=503)
+    return {"ready": True}
 
 
 @app.get("/api/corpus")
@@ -96,14 +151,29 @@ async def list_rules(country: Literal["VD", "KS", "OL"] | None = None,
                            for name in rule_set.sets["CORE"].code_lists}}
 
 
+async def read_invoice_body(request: Request) -> bytes:
+    """The request body, up to MAX_UPLOAD_KB. A larger declared Content-Length is refused before anything is read;
+    a body without one (chunked) is read in pieces and refused one piece past the limit, never read to the end."""
+    limit = config.MAX_UPLOAD_KB * 1024
+    too_large = HTTPException(413, f"The invoice is larger than {config.MAX_UPLOAD_KB} KB.")
+    declared = request.headers.get("content-length", "")
+    if declared.isdigit() and int(declared) > limit:
+        raise too_large
+    chunks, size = [], 0
+    async for chunk in request.stream():
+        size += len(chunk)
+        if size > limit:
+            raise too_large
+        chunks.append(chunk)
+    return b"".join(chunks)
+
+
 @app.post("/api/validate", response_model=ValidationReport)
 async def validate_invoice(request: Request, country: Country | None = None,
                            transaction_type: TransactionType | None = None, stage: Stage = "pre_clearance",
                            taxpayer_size: TaxpayerSize = "unknown"):
     """Validate the UBL invoice in the request body (no LLM). Parameters left out are worked out from the invoice."""
-    data = await request.body()
-    if len(data) > config.MAX_UPLOAD_KB * 1024:
-        raise HTTPException(413, f"The invoice is larger than {config.MAX_UPLOAD_KB} KB.")
+    data = await read_invoice_body(request)
     return validate(data, country=country, transaction_type=transaction_type, stage=stage,
                     taxpayer_size=taxpayer_size)
 
@@ -114,7 +184,7 @@ async def validate_invoice(request: Request, country: Country | None = None,
 async def upload_attachment(request: Request):
     """Store an invoice (raw XML body) for the chat. It is parsed safely only when the assistant validates it."""
     try:
-        attachment_id = attachments.save(await request.body())
+        attachment_id = attachments.save(await read_invoice_body(request))
     except attachments.AttachmentError as exc:
         raise HTTPException(413 if "larger" in str(exc) else 422, str(exc)) from None
     return {"attachment_id": attachment_id}

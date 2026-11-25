@@ -341,6 +341,29 @@ def test_check_citations_keeps_valid_refs_and_ordinary_brackets():
     assert valid == ["VD-AM-03 §2", "OL-TS-01 §4"] and invalid == ["VD-LAW-01 §9"]
 
 
+
+@pytest.mark.parametrize("answer", [
+    "Invoices must be cleared first [VD-LAW-77 §9].",
+    "Invoices must be cleared first (VD-LAW-77 §9).",
+    "Per VD-LAW-77 §9, invoices must be cleared first.",
+    "Invoices must, as VD-LAW-77 §9 says, be cleared first.",
+    "VD-LAW-77 §9 says invoices must be cleared first.",
+])
+def test_check_citations_flags_unknown_refs_in_any_form(answer):
+    """Review T17.A4: a reference outside square brackets used to pass unchecked."""
+    text, valid, invalid = check_citations(answer, {"VD-AM-03 §2"})
+    assert invalid == ["VD-LAW-77 §9"] and valid == []
+    assert "VD-LAW-77" not in text and "  " not in text and " ," not in text and "()" not in text
+    assert text == text.strip() and "cleared first" in text
+
+
+def test_check_citations_counts_valid_refs_outside_brackets_and_keeps_text():
+    text, valid, invalid = check_citations(
+        "Per VD-AM-03 §2, B2B is in scope (OL-TS-01 §4); see VD-LAW-01 §9 too (a note).",
+        {"VD-AM-03 §2", "OL-TS-01 §4"})
+    assert valid == ["VD-AM-03 §2", "OL-TS-01 §4"] and invalid == ["VD-LAW-01 §9"]
+    assert text.startswith("Per VD-AM-03 §2, B2B is in scope (OL-TS-01 §4);") and "(a note)" in text
+
 # --- failures ----------------------------------------------------------------------------------------------------
 
 def test_an_llm_outage_gives_a_friendly_error_and_the_thread_still_works(graph, fake_lm):

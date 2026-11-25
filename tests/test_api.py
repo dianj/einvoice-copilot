@@ -101,3 +101,92 @@ def test_sample_list_and_unknown_samples(client):
 def test_index_page(client):
     response = client.get("/")
     assert response.status_code == 200 and "<title>E-Invoice Compliance Copilot</title>" in response.text
+
+
+# --- size limits before the body is read (review T17.A6) --------------------------------------------------------
+
+def _post_endless(path: str, headers: list[tuple[bytes, bytes]] = ()) -> tuple[int, int]:
+    """POST an endless body of 1 KB chunks straight through ASGI: (status, chunks the app asked for)."""
+    import asyncio
+
+    asked, sent = [0], []
+
+    async def receive():
+        asked[0] += 1
+        if asked[0] > 200:                      # far past any limit: the app read everything it was given
+            return {"type": "http.disconnect"}
+        return {"type": "http.request", "body": b"x" * 1024, "more_body": True}
+
+    async def send(message):
+        if message["type"] == "http.response.start":
+            sent.append(message["status"])
+
+    scope = {"type": "http", "asgi": {"version": "3.0"}, "http_version": "1.1", "method": "POST", "scheme": "http",
+             "path": path, "raw_path": path.encode(), "query_string": b"", "root_path": "",
+             "headers": [(b"content-type", b"application/xml"), *headers], "client": ("127.0.0.1", 1),
+             "server": ("testserver", 80)}
+    asyncio.run(server.app(scope, receive, send))
+    return sent[0], asked[0]
+
+
+@pytest.mark.parametrize("path", ["/api/validate", "/api/attachments"])
+def test_an_oversized_body_is_refused_without_reading_it(path, monkeypatch):
+    monkeypatch.setattr(config, "MAX_UPLOAD_KB", 4)
+    status, asked = _post_endless(path)
+    assert status == 413 and asked <= 6                 # stops at the limit + 1 chunk, not at the end of the body
+    status, asked = _post_endless(path, [(b"content-length", str(10 * 1024 * 1024).encode())])
+    assert status == 413 and asked == 0                 # the declared length is enough
+
+
+# --- warm-up and readiness (review T17.A7) ----------------------------------------------------------------------
+
+def test_ready_answers_503_until_the_index_and_embedder_are_warm(monkeypatch):
+    """The embedder load and the index sync happen at start-up, not in the first user's request."""
+    import time
+    from types import SimpleNamespace
+
+    release = threading.Event()
+
+    def slow_retriever():
+        release.wait(10)                                 # a model that takes its time to load
+        embedder = SimpleNamespace(name="slow-test-model", embed_query=print)
+        return SimpleNamespace(embedder=embedder, chunks={"a": 1, "b": 2})
+    monkeypatch.setattr(server, "load_retriever", slow_retriever)
+    with TestClient(server.app) as c:
+        assert c.get("/api/ready").status_code == 503
+        health = c.get("/api/health").json()
+        assert health["status"] == "ok" and health["index"]["ready"] is False   # alive, just not ready
+        release.set()
+        deadline = time.time() + 5
+        while c.get("/api/ready").status_code != 200 and time.time() < deadline:
+            time.sleep(0.02)
+        assert c.get("/api/ready").json() == {"ready": True}
+        health = c.get("/api/health").json()
+        assert health["embedder"] == {"model": "slow-test-model", "loaded": True}
+        assert health["index"] == {"ready": True, "chunks": 2, "error": None}
+        assert health["checkpointer"]["ok"] is True
+
+
+def test_a_failed_warm_up_keeps_ready_at_503(monkeypatch):
+    def broken():
+        raise OSError("model download failed")
+    monkeypatch.setattr(server, "load_retriever", broken)
+    with TestClient(server.app) as c:
+        import time
+
+        deadline = time.time() + 5
+        while c.get("/api/health").json()["index"]["error"] is None and time.time() < deadline:
+            time.sleep(0.02)
+        assert c.get("/api/ready").status_code == 503
+        assert c.get("/api/health").json()["index"]["error"] == "OSError"
+
+
+def test_health_reports_a_broken_checkpointer():
+    with TestClient(server.app) as c:
+        working = server.app.state.checkpointer
+        try:
+            server.app.state.checkpointer = object()             # no usable connection
+            assert c.get("/api/health").json()["checkpointer"] == {"ok": False}
+        finally:
+            server.app.state.checkpointer = working
+

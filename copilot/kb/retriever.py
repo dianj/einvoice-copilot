@@ -12,6 +12,7 @@
 import asyncio
 import logging
 import re
+import threading
 from datetime import date
 from functools import lru_cache
 
@@ -145,7 +146,16 @@ def all_chunks(include_test: bool = False) -> list[Chunk]:
     return [c for doc in corpus(include_test) for c in chunk_document(doc)]
 
 
+_building = threading.Lock()
+
+
 @lru_cache(maxsize=2)
-def retriever(include_test: bool = False) -> Retriever:
-    """The app's retriever: the configured embedder and the on-disk index, synced with the corpus at first use."""
+def _retriever(include_test: bool) -> Retriever:
     return Retriever(all_chunks(include_test), make_embedder(), config.CHROMA_PATH, include_test)
+
+
+def retriever(include_test: bool = False) -> Retriever:
+    """The app's retriever: the configured embedder and the on-disk index, synced with the corpus at first use. Built
+    once: the start-up warm-up and a first request arriving meanwhile wait for the same build."""
+    with _building:
+        return _retriever(include_test)

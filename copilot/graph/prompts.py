@@ -4,6 +4,8 @@ The model only ever fills a schema. What the fields mean is decided in code: the
 dates are parsed by `dateparser`, citations must match retrieved passages, and explanations must cover exactly the
 rule engine's findings.
 """
+import re
+
 from copilot.kb.chunker import COUNTRY_NAMES  # noqa: F401  (one list of names: prompts and chunk headers)
 
 PROMPT_VERSION = "e5-2026-11-24.1"
@@ -52,11 +54,18 @@ ROUTE_SCHEMA = {
 }
 
 
+def escape_block(text) -> str:
+    """Text placed inside a <<tag>> ... <</tag>> block (a message, a passage, a value from an invoice) can neither
+    close that block nor open a new one: every "<<" and ">>" in it gets a space ("< <"). Single angle brackets and
+    everything else stay as they are."""
+    return re.sub(r">(?=>)", "> ", re.sub(r"<(?=<)", "< ", str(text)))
+
+
 def route_user(message: str, history: list[dict], has_attachment: bool, has_draft: bool = False) -> str:
-    turns = "\n".join(f"{m['role']}: {m['content'][:400]}" for m in history) or "(none)"
+    turns = "\n".join(f"{m['role']}: {escape_block(m['content'][:400])}" for m in history) or "(none)"
     return (f"Earlier turns:\n{turns}\n\nAttachment: {'an invoice is attached' if has_attachment else 'none'}\n"
             f"Requirement draft in this conversation: {'yes' if has_draft else 'none'}\n\n"
-            f"Latest message:\n<<message>>\n{message}\n<</message>>")
+            f"Latest message:\n<<message>>\n{escape_block(message)}\n<</message>>")
 
 
 # --- answer_grounded --------------------------------------------------------------------------------------------
@@ -84,15 +93,16 @@ ANSWER_SCHEMA = {
 
 def passage_block(p: dict) -> str:
     end = p["valid_to"] or "open"
-    return (f'<<passage ref="{p["doc_id"]} §{p["section"]}" title="{p["title"]}" type={p["doc_type"]} '
+    title = escape_block(p["title"]).replace('"', "'")
+    return (f'<<passage ref="{p["doc_id"]} §{p["section"]}" title="{title}" type={p["doc_type"]} '
             f'authority={p["authority"]} published={p["published"]} in_force="{p["valid_from"]} to {end}">>\n'
-            f'{p["heading"]}\n{p["text"]}\n<</passage>>')
+            f'{escape_block(p["heading"])}\n{escape_block(p["text"])}\n<</passage>>')
 
 
 def answer_user(question: str, dates: list[str], passages: list[dict]) -> str:
     blocks = "\n\n".join(passage_block(p) for p in passages)
     return (f"Date(s) the question is about: {', '.join(dates)}\n\nPassages:\n{blocks}\n\n"
-            f"Question:\n<<question>>\n{question}\n<</question>>")
+            f"Question:\n<<question>>\n{escape_block(question)}\n<</question>>")
 
 
 # --- explain_findings -------------------------------------------------------------------------------------------
@@ -128,8 +138,10 @@ def explain_schema(rule_ids: list[str], refs: list[str]) -> dict:
 
 
 def explain_user(report: dict, passages: list[dict]) -> str:
-    lines = [f"- {f['rule_id']} ({f['severity']}): {f['title']}. Location {f['location']}. Value found: "
-             f"<<value>>{f['value']}<</value>>. Engine message: {f['message']} Engine fix hint: {f['fix_hint']} "
+    # The value, and the engine's message that may quote it, come from the invoice: data, never instructions.
+    lines = [f"- {f['rule_id']} ({f['severity']}): {f['title']}. Location {escape_block(f['location'])}. Value found: "
+             f"<<value>>{escape_block(f['value'])}<</value>>. Engine message: {escape_block(f['message'])} "
+             f"Engine fix hint: {escape_block(f['fix_hint'])} "
              f"Rests on: {', '.join(f['doc_ref']) or 'no document'}" for f in report["findings"]]
     blocks = "\n\n".join(passage_block(p) for p in passages) or "(none)"
     return (f"Invoice: country {report['country']}, transaction type {report['transaction_type']}, rules selected "
@@ -217,5 +229,6 @@ def draft_schema(countries: list[str], refs: list[str], rule_ids: list[str]) -> 
 
 def draft_user(request: str, passages: list[dict], rule_lines: list[str]) -> str:
     blocks = "\n\n".join(passage_block(p) for p in passages)
-    return (f"Passages:\n{blocks}\n\nValidation rules (id: title, rests on):\n" + "\n".join(rule_lines) +
-            f"\n\nRequest:\n<<request>>\n{request}\n<</request>>")
+    return (f"Passages:\n{blocks}\n\nValidation rules (id: title, rests on):\n" +
+            "\n".join(escape_block(line) for line in rule_lines) +
+            f"\n\nRequest:\n<<request>>\n{escape_block(request)}\n<</request>>")

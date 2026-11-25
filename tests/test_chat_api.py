@@ -6,7 +6,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 import server
-from copilot import config
+from copilot import attachments, config
 
 
 @pytest.fixture
@@ -58,6 +58,8 @@ def test_attachment_limits(client, monkeypatch):
     assert client.post("/api/attachments", content=b"").status_code == 422
     monkeypatch.setattr(config, "MAX_UPLOAD_KB", 1)
     assert client.post("/api/attachments", content=b"x" * 2048).status_code == 413
+    with pytest.raises(attachments.AttachmentError, match="larger"):   # the store checks again on its own
+        attachments.save(b"x" * 2048)
 
 
 def test_chat_input_is_checked(client):

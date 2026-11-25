@@ -8,6 +8,7 @@ file needs no model at all.
 import asyncio
 from datetime import date
 
+from copilot import config
 from copilot.attachments import load
 from copilot.graph import prompts
 from copilot.graph.nodes.common import language, passage_dict, reply, traced
@@ -26,7 +27,7 @@ async def validate_invoice(state) -> dict:
         return {"report": None, **reply(text(state["language"], "attachment_missing"))}
     params = {k: v for k, v in (state.get("params") or {}).items() if k in PARAM_NAMES and v}
     report = await asyncio.to_thread(validate, data, **params)
-    day = (report.rule_date or date.today()).isoformat()
+    day = (report.rule_date or config.today()).isoformat()
     return {"report": report.model_dump(mode="json"), "dates": [day], "date_source": "invoice",
             "notes": list(state.get("notes", [])) + list(report.notes)}   # keep route's ("cannot be skipped")
 

@@ -62,11 +62,14 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Start it and check /api/health
+      # /api/health answers as soon as the server runs; /api/ready once the embedder and the index are warm.
+      - name: Start it and check /api/health and /api/ready
         run: |
           docker run -d --name app -p 8000:8000 einvoice-copilot
-          for i in $(seq 1 30); do
-            if curl -fsS http://127.0.0.1:8000/api/health; then exit 0; fi
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:8000/api/ready; then
+              curl -fsS http://127.0.0.1:8000/api/health; exit 0
+            fi
             sleep 2
           done
           docker logs app

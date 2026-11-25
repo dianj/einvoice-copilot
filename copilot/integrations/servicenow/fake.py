@@ -1,5 +1,5 @@
 """FakeServiceNow: the same interface on a local SQLite table (the default backend; tests and the offline demo)."""
-from datetime import datetime
+from datetime import UTC, datetime
 
 import aiosqlite
 
@@ -45,7 +45,8 @@ class FakeServiceNow:
                 (seq, number, sys_id, draft.title, draft.country,
                  draft.effective_date.isoformat() if draft.effective_date else None, draft.user_story,
                  "\n".join(draft.acceptance_criteria), ",".join(draft.rule_ids), "; ".join(draft.doc_refs),
-                 draft.priority, idempotency_key, source_thread, datetime.now().isoformat(sep=" ", timespec="seconds")))
+                 draft.priority, idempotency_key, source_thread,
+                 datetime.now(UTC).isoformat(sep=" ", timespec="seconds")))
             await db.commit()
             return TicketRef(number=number, sys_id=sys_id, created=True)
         finally:

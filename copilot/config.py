@@ -1,7 +1,8 @@
 """Settings from environment variables (see .env.example), read at import time."""
 import os
-from datetime import date
+from datetime import UTC, date, datetime
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 CORPUS_DIR = BASE_DIR / "corpus"
@@ -49,7 +50,12 @@ MAX_UPLOAD_KB = int(os.environ.get("MAX_UPLOAD_KB", "512"))
 
 # "Today" for questions without a date. Empty = the real date.
 FROZEN_TODAY = os.environ.get("FROZEN_TODAY", "")
+# The team's time zone: "today" is the date there, not on the server (a Docker image runs in UTC).
+BUSINESS_TZ = os.environ.get("BUSINESS_TZ", "Europe/Sofia")
 
 
-def today() -> date:
-    return date.fromisoformat(FROZEN_TODAY) if FROZEN_TODAY else date.today()
+def today(now: datetime | None = None) -> date:
+    """The business date: FROZEN_TODAY when set, else the date in BUSINESS_TZ. The only clock in the package."""
+    if FROZEN_TODAY:
+        return date.fromisoformat(FROZEN_TODAY)
+    return (now or datetime.now(UTC)).astimezone(ZoneInfo(BUSINESS_TZ)).date()
