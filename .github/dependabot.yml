@@ -1,0 +1,14 @@
+# Weekly update pull requests for the Python dependencies and the GitHub Actions used in CI.
+# After a bump in requirements.txt, regenerate requirements.lock with the command in its header (SECURITY.md);
+# tests/test_supply_chain.py fails while the two disagree.
+version: 2
+updates:
+  - package-ecosystem: pip
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly

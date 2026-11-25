@@ -14,8 +14,9 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1
 
 WORKDIR /app
-COPY requirements.txt .
-RUN pip install -r requirements.txt
+# Exact versions from the lock, every file checked against its hash (SECURITY.md).
+COPY requirements.lock .
+RUN pip install --require-hashes -r requirements.lock
 
 # Run as an unprivileged user; data/ is the only writable place. data/ is a volume, so the model lives outside it.
 RUN useradd --create-home --uid 1000 app
