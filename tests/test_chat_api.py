@@ -26,6 +26,11 @@ def events_of(response) -> list[dict]:
     return out
 
 
+def new_thread(client) -> str:
+    """A thread made by the server for this client's cookie (only such ids are accepted)."""
+    return client.post("/api/threads").json()["thread_id"]
+
+
 def route(intent, countries=(), dates=()):
     return {"intent": intent, "countries": list(countries), "date_phrases": list(dates), "search_query": ""}
 
@@ -46,7 +51,7 @@ def test_upload_an_invoice_and_validate_it_in_the_chat(client, fake_lm):
     xml = (config.SAMPLES_DIR / "ol-b2b-valid.xml").read_bytes()
     attachment_id = client.post("/api/attachments", content=xml).json()["attachment_id"]
     fake_lm.script("route", route("validate", ["OL"]))
-    events = events_of(client.post("/api/chat", json={"message": "Check it", "thread_id": "api-validate",
+    events = events_of(client.post("/api/chat", json={"message": "Check it", "thread_id": new_thread(client),
                                                       "attachment_id": attachment_id,
                                                       "params": {"transaction_type": "B2B"}}))
     findings = next(e for e in events if e["event"] == "findings")["report"]
@@ -71,21 +76,23 @@ def test_chat_input_is_checked(client):
 
 
 def test_a_busy_thread_refuses_a_second_message(client, fake_lm):
-    lock = server.thread_locks.setdefault("busy", asyncio.Lock())
+    busy = new_thread(client)
+    lock = server.thread_locks.setdefault(busy, asyncio.Lock())
     asyncio.run(lock.acquire())  # as if a run were in progress (an uncontended acquire binds no event loop)
     try:
-        response = client.post("/api/chat", json={"message": "hi", "thread_id": "busy"})
+        response = client.post("/api/chat", json={"message": "hi", "thread_id": busy})
         assert response.status_code == 409 and "still answering" in response.json()["detail"]
     finally:
         lock.release()
     fake_lm.script("route", route("out_of_scope"))
-    assert events_of(client.post("/api/chat", json={"message": "hi", "thread_id": "busy"}))[-1]["event"] == "final"
+    assert events_of(client.post("/api/chat", json={"message": "hi", "thread_id": busy}))[-1]["event"] == "final"
 
 
 def test_an_llm_outage_is_an_error_event_not_a_crash(client, fake_lm):
     fake_lm.fail_count = 1
-    events = events_of(client.post("/api/chat", json={"message": "What is KSK?", "thread_id": "outage"}))
-    assert events[-1]["event"] == "error" and "outage" not in server.thread_locks
+    outage = new_thread(client)
+    events = events_of(client.post("/api/chat", json={"message": "What is KSK?", "thread_id": outage}))
+    assert events[-1]["event"] == "error" and outage not in server.thread_locks
 
 
 # --- requirement drafts, approval, tickets ------------------------------------------------------------------------
@@ -101,24 +108,25 @@ def scripted_draft(payload):
 
 
 def test_draft_approve_and_the_ticket_over_http(client, fake_lm):
+    thread_id = new_thread(client)
     fake_lm.script("route", route("draft_requirement", ["OL"], ["1 April 2026"]))
     fake_lm.script("requirement_draft", scripted_draft)
     events = events_of(client.post("/api/chat", json={"message": "Draft a requirement for the Orlavia deadline",
-                                                      "thread_id": "api-ticket"}))
+                                                      "thread_id": thread_id}))
     assert next(e for e in events if e["event"] == "draft")["draft"]["country"] == "OL"
 
-    events = events_of(client.post("/api/chat", json={"message": "Create ticket", "thread_id": "api-ticket",
+    events = events_of(client.post("/api/chat", json={"message": "Create ticket", "thread_id": thread_id,
                                                       "action": "create_ticket"}))
     waiting = next(e for e in events if e["event"] == "approval")
-    thread = client.get("/api/threads/api-ticket").json()
+    thread = client.get(f"/api/threads/{thread_id}").json()
     assert thread["pending_approval"]["interrupt_id"] == waiting["interrupt_id"]
     assert thread["requirement_draft"]["country"] == "OL" and thread["ticket"] is None
 
-    url = "/api/threads/api-ticket/approval"
+    url = f"/api/threads/{thread_id}/approval"
     assert client.post(url, json={"interrupt_id": "stale", "approved": True}).status_code == 409
     assert client.post(url, json={"interrupt_id": waiting["interrupt_id"], "approved": True,
                                   "edits": {"rule_ids": ["OL-01"]}}).status_code == 422   # evidence is not editable
-    assert "api-ticket" not in server.thread_locks                                        # the 409 released it
+    assert thread_id not in server.thread_locks                                        # the 409 released it
     events = events_of(client.post(url, json={"interrupt_id": waiting["interrupt_id"], "approved": True,
                                               "edits": {"priority": "medium"}}))
     ticket = next(e for e in events if e["event"] == "ticket")["ticket"]
@@ -128,7 +136,7 @@ def test_draft_approve_and_the_ticket_over_http(client, fake_lm):
     listed = client.get("/api/tickets").json()
     assert listed[0]["number"] == ticket["number"] and listed[0]["priority"] == "medium"
     detail = client.get(f"/api/tickets/{ticket['number']}").json()
-    assert detail["source_thread"] == "api-ticket" and detail["doc_refs"][0].startswith("OL-AM-12")
+    assert detail["source_thread"] == thread_id and detail["doc_refs"][0].startswith("OL-AM-12")
     assert client.get("/api/tickets/LOCREQ9999999").status_code == 404
     assert client.get("/api/tickets?limit=0").status_code == 422
     assert client.get("/api/health").json()["tickets"] == {"backend": "fake"}
@@ -149,11 +157,12 @@ def test_ticket_system_outage_is_503(client, monkeypatch):
 
 
 def test_approval_on_a_busy_thread_is_409(client):
-    lock = server.thread_locks.setdefault("busy-approval", asyncio.Lock())
+    busy = new_thread(client)
+    lock = server.thread_locks.setdefault(busy, asyncio.Lock())
     asyncio.run(lock.acquire())
     try:
-        response = client.post("/api/threads/busy-approval/approval", json={"interrupt_id": "x", "approved": True})
+        response = client.post(f"/api/threads/{busy}/approval", json={"interrupt_id": "x", "approved": True})
         assert response.status_code == 409
     finally:
         lock.release()
-        server.thread_locks.pop("busy-approval", None)
+        server.thread_locks.pop(busy, None)

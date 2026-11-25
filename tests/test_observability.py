@@ -2,7 +2,7 @@
 and the metrics over HTTP."""
 import pytest
 from fastapi.testclient import TestClient
-from test_chat_api import events_of, route, scripted_draft
+from test_chat_api import events_of, new_thread, route, scripted_draft
 
 import server
 from copilot import config, observability
@@ -48,11 +48,12 @@ def test_retrieved_documents_and_abstention_are_recorded(client, fake_lm):
 def test_the_approval_flow_is_two_runs_and_the_metrics_add_up(client, fake_lm):
     fake_lm.script("route", route("draft_requirement", ["OL"], ["1 April 2026"]))
     fake_lm.script("requirement_draft", scripted_draft)
-    chat(client, message="Draft a requirement for the Orlavia deadline", thread_id="obs-ticket")
-    events = chat(client, message="Create ticket", thread_id="obs-ticket", action="create_ticket")
+    thread_id = new_thread(client)
+    chat(client, message="Draft a requirement for the Orlavia deadline", thread_id=thread_id)
+    events = chat(client, message="Create ticket", thread_id=thread_id, action="create_ticket")
     waiting = next(e for e in events if e["event"] == "approval")
     assert client.get(f"/api/runs/{events[1]['run_id']}").json()["status"] == "waiting"
-    events = events_of(client.post("/api/threads/obs-ticket/approval",
+    events = events_of(client.post(f"/api/threads/{thread_id}/approval",
                                    json={"interrupt_id": waiting["interrupt_id"], "approved": True}))
     run = client.get(f"/api/runs/{events[1]['run_id']}").json()
     assert run["kind"] == "approval" and run["approved"] == 1 and run["ticket"].startswith("LOCREQ")
@@ -115,10 +116,11 @@ def test_the_route_check_is_on_the_route_span(client, fake_lm, gates):
 def test_a_typed_approval_is_a_run_of_its_own_with_both_questions(client, fake_lm, gates):
     fake_lm.script("route", route("draft_requirement", ["OL"], ["1 April 2026"]))
     fake_lm.script("requirement_draft", scripted_draft)
-    chat(client, message="Draft a requirement for the Orlavia deadline", thread_id="obs-gate")
-    chat(client, message="Create ticket", thread_id="obs-gate", action="create_ticket")
+    thread_id = new_thread(client)
+    chat(client, message="Draft a requirement for the Orlavia deadline", thread_id=thread_id)
+    chat(client, message="Create ticket", thread_id=thread_id, action="create_ticket")
     gates.answers.append({"Y": 0.8, "N": 0.2})                      # not clear enough: the card stays
-    events = chat(client, message="yes I guess", thread_id="obs-gate")
+    events = chat(client, message="yes I guess", thread_id=thread_id)
     assert events[-1]["awaiting_approval"] is True and events[-1]["run_id"] == events[1]["run_id"]
     run = client.get(f"/api/runs/{events[1]['run_id']}").json()
     assert run["kind"] == "approval_gate" and run["intent"] == "approval_gate" and run["status"] == "ok"

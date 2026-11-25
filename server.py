@@ -7,7 +7,6 @@ import asyncio
 import json
 import logging
 import time
-import uuid
 from contextlib import asynccontextmanager
 from datetime import date
 from typing import Literal
@@ -18,7 +17,7 @@ from fastapi.responses import FileResponse, JSONResponse, Response, StreamingRes
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from pydantic import BaseModel, Field
 
-from copilot import attachments, config, observability
+from copilot import attachments, config, observability, threads
 from copilot.corpus.loader import corpus
 from copilot.graph.build import build_graph
 from copilot.graph.run import pending_approval, stream_resume, stream_turn
@@ -238,23 +237,63 @@ def stream_events(thread_id: str, lock: asyncio.Lock, source) -> StreamingRespon
                              headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
 
+# --- who may use a thread (copilot/threads.py) ------------------------------------------------------------------
+
+def set_session_cookie(response: Response, request: Request, token: str):
+    response.set_cookie(threads.COOKIE, token, httponly=True, samesite="strict", secure=request.url.scheme == "https",
+                        max_age=30 * 24 * 3600, path="/")
+
+
+async def require_thread(thread_id: str, request: Request):
+    """404 unless this browser created the thread: a guessed or leaked id is not enough to read or approve it."""
+    if not await threads.owned(thread_id, request.cookies.get(threads.COOKIE)):
+        raise HTTPException(404, f"Unknown thread '{thread_id}'.")
+
+
+async def new_thread(request: Request) -> tuple[str, str | None]:
+    """(a new thread id for this browser, the session token to set when the browser has none yet)."""
+    token = request.cookies.get(threads.COOKIE)
+    fresh = None if token else threads.new_session_token()
+    return await threads.create(token or fresh), fresh
+
+
+@app.post("/api/threads", status_code=201)
+async def create_thread(request: Request, response: Response):
+    """A new conversation, bound to this browser (an httpOnly cookie is set on the first one)."""
+    thread_id, fresh = await new_thread(request)
+    if fresh:
+        set_session_cookie(response, request, fresh)
+    return {"thread_id": thread_id}
+
+
 @app.post("/api/chat")
 async def chat(body: ChatRequest, request: Request):
     """Run the graph for one message and stream its progress as server-sent events (read with fetch: POST).
-    A second message while the first is running gets 409. A message while a draft waits for approval ends that
+    Without a thread id a new thread is made for this browser; a thread id must be one this browser created (else
+    404). A second message while the first is running gets 409. A message while a draft waits for approval ends that
     wait without a ticket."""
     graph = request.app.state.graph
-    thread_id = body.thread_id or uuid.uuid4().hex
+    fresh = None
+    if body.thread_id:
+        await require_thread(body.thread_id, request)
+        thread_id = body.thread_id
+    else:
+        thread_id, fresh = await new_thread(request)
     lock = await thread_lock(thread_id)
-    return stream_events(thread_id, lock, stream_turn(graph, thread_id, body.message, body.attachment_id,
-                                                      body.params.model_dump(exclude_none=True), body.action))
+    response = stream_events(thread_id, lock, stream_turn(graph, thread_id, body.message, body.attachment_id,
+                                                          body.params.model_dump(exclude_none=True), body.action))
+    if fresh:
+        set_session_cookie(response, request, fresh)
+    return response
 
 
 @app.post("/api/threads/{thread_id}/approval")
 async def answer_approval(thread_id: str, body: ApprovalRequest, request: Request):
     """Approve (optionally with edits) or reject the requirement draft the thread is waiting on. The only way a
-    ticket gets created. The interrupt id must be the open one: a stale card (the thread moved on) gets 409."""
+    ticket gets created. Only the browser that created the thread may answer (else 404). The interrupt id must be
+    the open one: a stale card (the thread moved on) gets 409."""
     graph = request.app.state.graph
+    await require_thread(thread_id, request)
     lock = await thread_lock(thread_id)
     try:
         waiting = pending_approval(await graph.aget_state({"configurable": {"thread_id": thread_id}}))
@@ -270,6 +309,7 @@ async def answer_approval(thread_id: str, body: ApprovalRequest, request: Reques
 
 @app.get("/api/threads/{thread_id}")
 async def get_thread(thread_id: str, request: Request):
+    await require_thread(thread_id, request)
     state = await request.app.state.graph.aget_state({"configurable": {"thread_id": thread_id}})
     if not state.values:
         raise HTTPException(404, f"Unknown thread '{thread_id}'.")

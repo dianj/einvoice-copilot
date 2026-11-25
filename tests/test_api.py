@@ -190,3 +190,9 @@ def test_health_reports_a_broken_checkpointer():
         finally:
             server.app.state.checkpointer = working
 
+
+def test_the_api_is_documented_at_docs(client):
+    assert client.get("/docs").status_code == 200
+    paths = client.get("/openapi.json").json()["paths"]
+    assert {"/api/chat", "/api/threads", "/api/ready", "/api/validate",
+            "/api/threads/{thread_id}/approval"} <= set(paths)
